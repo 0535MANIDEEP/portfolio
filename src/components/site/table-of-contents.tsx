@@ -36,23 +36,37 @@ function ensureHeadingIds(container: HTMLElement | null): Heading[] {
   const headings = container.querySelectorAll('h2, h3')
   const items: Heading[] = []
 
-  headings.forEach((heading) => {
+  // Ids assigned during this pass. Needed because a heading we just renamed is
+  // not yet distinguishable from a pre-existing element by getElementById alone.
+  const assigned = new Set<string>()
+
+  headings.forEach((heading, index) => {
     const el = heading as HTMLElement
-    if (!el.id) {
-      el.id = slugify(el.textContent || `heading-${items.length}`)
+    const base = slugify(el.textContent || '') || `heading-${index}`
+
+    // The previous implementation looped `while (document.getElementById(el.id))`.
+    // Because `el` is itself in the document, that lookup always resolved to `el`,
+    // so the condition could never become false — it renamed the element forever
+    // and hung the renderer. Any article containing an h2 or h3 froze the page.
+    // A collision only counts when some *other* element already owns the id.
+    const taken = (id: string) => {
+      if (assigned.has(id)) return true
+      const existing = document.getElementById(id)
+      return existing !== null && existing !== el
     }
-    // Ensure id is unique
-    const baseId = el.id
-    let counter = 1
-    while (document.getElementById(el.id)) {
-      if (el.id === baseId) {
-        counter = 1
-      }
-      el.id = `${baseId}-${counter}`
+
+    let id = base
+    let counter = 2
+    while (taken(id)) {
+      id = `${base}-${counter}`
       counter++
     }
+
+    el.id = id
+    assigned.add(id)
+
     items.push({
-      id: el.id,
+      id,
       text: el.textContent || 'Heading',
       level: el.tagName === 'H2' ? 2 : 3,
     })
@@ -70,7 +84,18 @@ export function TableOfContents({ containerRef }: { containerRef: React.RefObjec
 
   const updateHeadings = useCallback(() => {
     const items = ensureHeadingIds(containerRef.current)
-    setHeadings(items)
+    // The MutationObserver fires on every DOM change inside the article, and a
+    // fresh array would re-render (and re-create the IntersectionObserver) each
+    // time. Only update when the heading list actually changed.
+    setHeadings((prev) => {
+      if (
+        prev.length === items.length &&
+        prev.every((h, i) => h.id === items[i].id && h.text === items[i].text)
+      ) {
+        return prev
+      }
+      return items
+    })
   }, [containerRef])
 
   // Set up MutationObserver to detect when headings are added/removed
