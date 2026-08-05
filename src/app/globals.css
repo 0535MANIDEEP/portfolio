@@ -121,6 +121,59 @@
   }
 }
 
+/* ── Tech marquee ────────────────────────────────────────────────
+   The track renders its children twice; translating by exactly -50%
+   lands the second copy where the first began, so the loop is seamless
+   at any item count or width. */
+@keyframes marquee-left {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes marquee-right {
+  from { transform: translateX(-50%); }
+  to   { transform: translateX(0); }
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation-duration: var(--marquee-duration, 40s);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+
+.marquee-track[data-direction='left']  { animation-name: marquee-left; }
+.marquee-track[data-direction='right'] { animation-name: marquee-right; }
+
+/* Let visitors stop the motion to read or click an item. */
+.marquee-viewport:hover .marquee-track,
+.marquee-viewport:focus-within .marquee-track {
+  animation-play-state: paused;
+}
+
+/* Edges fade into the background instead of being cut off abruptly. */
+.marquee-viewport {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track {
+    animation: none;
+    /* Without the animation the doubled content would overflow, so allow
+       the viewport to scroll manually instead. */
+    width: auto;
+    flex-wrap: wrap;
+  }
+  .marquee-viewport {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  .marquee-track > :nth-child(2) { display: none; }
+}
+
 /* Fix: strong/bold tag not breaking UI in prose/markdown */
 .prose strong, .prose b {
   font-weight: 700;

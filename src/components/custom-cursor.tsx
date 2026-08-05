@@ -18,8 +18,8 @@ interface CursorState {
   isHovering: boolean;
   circleSize: number;
   isHidden: boolean;
-  hoverCenterX: number;
-  hoverCenterY: number;
+  /** Element currently hovered; its rect is re-measured each frame. */
+  hoverTarget: HTMLElement | null;
 }
 
 const DOT_SIZE = 6;
@@ -46,12 +46,14 @@ export function CustomCursor() {
     isHovering: false,
     circleSize: DEFAULT_CIRCLE_SIZE,
     isHidden: true,
-    hoverCenterX: -100,
-    hoverCenterY: -100,
+    hoverTarget: null,
   });
   const rafRef = useRef<number>(0);
   const mounted = useMounted();
-  const { enableCustomCursor, loading } = useAppSettings();
+  // cursorMagneticSnap is stored in site settings but was never read, so the
+  // admin toggle had no effect. It is honoured now.
+  const { enableCustomCursor, cursorMagneticSnap, loading } = useAppSettings();
+  const magneticEnabled = cursorMagneticSnap !== false;
 
   useEffect(() => {
     // Don't show on touch devices or if disabled in settings
@@ -79,16 +81,22 @@ export function CustomCursor() {
     const handleMouseEnterInteractive = (e: Event) => {
       const target = e.currentTarget as HTMLElement;
       if (!target) return;
-      const rect = target.getBoundingClientRect();
       state.isHovering = true;
       state.circleSize = HOVER_CIRCLE_SIZE;
-      state.hoverCenterX = rect.left + rect.width / 2;
-      state.hoverCenterY = rect.top + rect.height / 2;
+      // Remember the element, not a one-off rect: the rect is re-measured
+      // every frame so the snap tracks the element through scrolling and
+      // layout shifts instead of pointing at where it used to be.
+      state.hoverTarget = target;
       dot.style.opacity = "0.3";
     };
 
-    const handleMouseLeaveInteractive = () => {
+    const handleMouseLeaveInteractive = (e: Event) => {
+      // With nested interactive elements (a button inside a link), leaving the
+      // child fires here while the pointer is still inside the parent. Only
+      // drop the hover state if we are actually leaving the tracked element.
+      if (state.hoverTarget && e.currentTarget !== state.hoverTarget) return;
       state.isHovering = false;
+      state.hoverTarget = null;
       state.circleSize = DEFAULT_CIRCLE_SIZE;
       dot.style.opacity = "1";
     };
@@ -108,12 +116,23 @@ export function CustomCursor() {
       let finalX = state.circleX;
       let finalY = state.circleY;
 
-      // Magnetic pull toward the hovered element's center
-      if (state.isHovering) {
-        const dx = state.hoverCenterX - state.circleX;
-        const dy = state.hoverCenterY - state.circleY;
-        finalX = state.circleX + dx * MAGNETIC_STRENGTH;
-        finalY = state.circleY + dy * MAGNETIC_STRENGTH;
+      // Magnetic pull toward the hovered element's centre, re-measured each
+      // frame so it stays correct while the page scrolls or reflows.
+      if (magneticEnabled && state.isHovering && state.hoverTarget) {
+        if (state.hoverTarget.isConnected) {
+          const rect = state.hoverTarget.getBoundingClientRect();
+          const dx = rect.left + rect.width / 2 - state.circleX;
+          const dy = rect.top + rect.height / 2 - state.circleY;
+          finalX = state.circleX + dx * MAGNETIC_STRENGTH;
+          finalY = state.circleY + dy * MAGNETIC_STRENGTH;
+        } else {
+          // Element was removed from the DOM while hovered (route change,
+          // conditional render) — release the snap instead of sticking.
+          state.isHovering = false;
+          state.hoverTarget = null;
+          state.circleSize = DEFAULT_CIRCLE_SIZE;
+          dot.style.opacity = "1";
+        }
       }
 
       const halfSize = state.circleSize / 2;
@@ -128,15 +147,20 @@ export function CustomCursor() {
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseleave", handleMouseLeave);
 
-    // Attach hover listeners to interactive elements
+    // Track bound elements in a WeakSet rather than a data attribute, so the
+    // marker disappears with the element and never pollutes the DOM.
+    const bound = new WeakSet<Element>();
+
+    const bindElement = (el: Element) => {
+      if (bound.has(el)) return;
+      bound.add(el);
+      el.addEventListener("mouseenter", handleMouseEnterInteractive);
+      el.addEventListener("mouseleave", handleMouseLeaveInteractive);
+    };
+
     const attachHoverListeners = (root: ParentNode = document.body) => {
       try {
-        root.querySelectorAll(INTERACTIVE_SELECTOR).forEach((el) => {
-          if ((el as HTMLElement).dataset.cursorBound) return;
-          (el as HTMLElement).dataset.cursorBound = "1";
-          el.addEventListener("mouseenter", handleMouseEnterInteractive);
-          el.addEventListener("mouseleave", handleMouseLeaveInteractive);
-        });
+        root.querySelectorAll(INTERACTIVE_SELECTOR).forEach(bindElement);
       } catch {
         /* ignore */
       }
@@ -146,9 +170,13 @@ export function CustomCursor() {
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         m.addedNodes.forEach((node) => {
-          if (node.nodeType === 1) {
-            attachHoverListeners(node.parentElement || document);
-          }
+          if (node.nodeType !== 1) return;
+          const el = node as HTMLElement;
+          // Scan the added subtree only. This previously re-scanned the whole
+          // parent subtree for every inserted node, which is quadratic on
+          // pages that render lists incrementally.
+          if (el.matches?.(INTERACTIVE_SELECTOR)) bindElement(el);
+          attachHoverListeners(el);
         });
       }
     });
@@ -162,7 +190,7 @@ export function CustomCursor() {
       document.removeEventListener("mouseleave", handleMouseLeave);
       observer.disconnect();
     };
-  }, [enableCustomCursor, loading]);
+  }, [enableCustomCursor, magneticEnabled, loading]);
 
   if (!mounted) return null;
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { ArrowDown, ArrowRight, Github, Linkedin, Mail, ChevronRight, X } from 'lucide-react'
@@ -8,7 +8,15 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Navbar, Footer } from '@/components/site/navbar'
 import { BlogCard, ProjectCard, CourseCard, LoadingCards } from '@/components/site/cards'
-import { SkillsMatrix } from '@/components/site/skills-matrix'
+import {
+  SkillsMatrix,
+  parseSkillCategories,
+  flattenSkills,
+  DEFAULT_SKILL_CATEGORIES,
+  type SkillCategory,
+} from '@/components/site/skills-matrix'
+import { TechMarquee } from '@/components/site/tech-marquee'
+import { AboutSection, type AboutProfile } from '@/components/site/about-section'
 import { HeroCarousel } from '@/components/site/hero-carousel'
 import { TypingAnimation } from '@/components/site/typing-animation'
 import { AnimatedCounter } from '@/components/site/animated-counter'
@@ -33,6 +41,8 @@ export default function Home() {
   const [carouselImages, setCarouselImages] = useState<string[]>([])
   const [typingLines, setTypingLines] = useState<string[]>(DEFAULT_TYPING_LINES)
   const [activeSkills, setActiveSkills] = useState<string[]>([])
+  const [skillCategories, setSkillCategories] = useState<SkillCategory[]>(DEFAULT_SKILL_CATEGORIES)
+  const [about, setAbout] = useState<AboutProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -58,8 +68,31 @@ export default function Home() {
           setTypingLines(lines.filter((l: string) => l.trim()).slice(0, 10))
         }
       } catch { /* ignore */ }
+
+      // Skills drive both the marquee and the category grid below it.
+      setSkillCategories(parseSkillCategories(data.skills))
+
+      let certifications: string[] = []
+      try {
+        const parsed = JSON.parse(data.certifications || '[]')
+        if (Array.isArray(parsed)) certifications = parsed.map(String).filter(Boolean)
+      } catch { /* ignore */ }
+
+      setAbout({
+        name: data.name,
+        occupation: data.occupation,
+        company: data.company,
+        location: data.location,
+        bio: data.bio,
+        tagline: data.tagline,
+        avatar: data.avatar,
+        resumeUrl: data.resumeUrl,
+        certifications,
+      })
     }).catch(() => {})
   }, [])
+
+  const allTech = useMemo(() => flattenSkills(skillCategories), [skillCategories])
 
   const handleSkillToggle = (skill: string) => {
     setActiveSkills(prev => {
@@ -187,13 +220,16 @@ export default function Home() {
           </div>
         </section>
 
+        {/* ABOUT — DB-driven, mirrors the /about page */}
+        {about && <AboutSection profile={about} />}
+
         {/* SKILLS & TECHNOLOGIES — before Featured Work */}
-        <section className="py-20 px-4 bg-muted/30">
+        <section className="py-20 px-4">
           <div className="mx-auto max-w-6xl">
             <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.5 }} className="mb-8">
-              <h2 className="text-2xl font-bold sm:text-3xl">Skills & Technologies</h2>
+              <h2 className="text-2xl font-bold sm:text-3xl">Skills &amp; Technologies</h2>
               <p className="text-muted-foreground mt-1">
-                Click skills to filter featured projects below
+                Click any technology to filter the featured projects below
                 {activeSkills.length > 0 && (
                   <span className="text-xs ml-2">
                     ({activeSkills.length}/5 selected)
@@ -201,7 +237,34 @@ export default function Home() {
                 )}
               </p>
             </motion.div>
-            <SkillsMatrix activeSkills={activeSkills} onSkillToggle={handleSkillToggle} maxSkills={5} />
+          </div>
+
+          {/* Tech I work with — full-bleed so the marquee runs edge to edge */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            whileInView={{ opacity: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+            className="-mx-4 mb-12"
+          >
+            <h3 className="mx-auto max-w-6xl px-4 mb-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Tech I work with
+            </h3>
+            <TechMarquee
+              items={allTech}
+              activeSkills={activeSkills}
+              onSkillToggle={handleSkillToggle}
+              maxSkills={5}
+            />
+          </motion.div>
+
+          <div className="mx-auto max-w-6xl">
+            <SkillsMatrix
+              activeSkills={activeSkills}
+              onSkillToggle={handleSkillToggle}
+              maxSkills={5}
+              categories={skillCategories}
+            />
           </div>
         </section>
 

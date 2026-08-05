@@ -2,28 +2,64 @@
 
 import { motion } from 'framer-motion'
 
-const skillCategories = [
-  {
-    name: 'Languages',
-    skills: ['Java 8/17', 'SQL', 'PL/SQL', 'C++', 'Python', 'JavaScript', 'TypeScript'],
-  },
-  {
-    name: 'Frameworks',
-    skills: ['Spring Boot', 'Oracle JET', 'Knockout.js', 'JUnit', 'Mockito', 'React', 'Next.js'],
-  },
-  {
-    name: 'Cloud & DevOps',
-    skills: ['Kubernetes', 'Docker', 'AWS', 'GCP', 'OCI', 'Terraform', 'Grafana', 'Prometheus'],
-  },
-  {
-    name: 'APIs & Architecture',
-    skills: ['RESTful APIs', 'SOAP', 'Microservices', 'JWT', 'OAuth 2.0', 'GraphQL'],
-  },
-  {
-    name: 'Tools & Platforms',
-    skills: ['Git', 'Linux', 'Postman', 'Flyway', 'Weblogic', 'Flexcube', 'Oracle BIP'],
-  },
+/**
+ * Skills grouped by category.
+ *
+ * Categories come from Profile.skills in the database so the admin panel is
+ * the single source of truth. DEFAULT_SKILL_CATEGORIES is only a fallback for
+ * a profile that has not been filled in yet — it used to be the *only* source,
+ * which meant editing skills in admin changed nothing on the site.
+ */
+
+export interface SkillCategory {
+  category: string
+  items: string[]
+}
+
+export const DEFAULT_SKILL_CATEGORIES: SkillCategory[] = [
+  { category: 'Languages', items: ['Java 8/17', 'SQL', 'PL/SQL', 'C++', 'Python', 'JavaScript', 'TypeScript'] },
+  { category: 'Frameworks', items: ['Spring Boot', 'Oracle JET', 'Knockout.js', 'JUnit', 'Mockito', 'React', 'Next.js'] },
+  { category: 'Cloud & DevOps', items: ['Kubernetes', 'Docker', 'AWS', 'GCP', 'OCI', 'Terraform', 'Grafana', 'Prometheus'] },
+  { category: 'APIs & Architecture', items: ['RESTful APIs', 'SOAP', 'Microservices', 'JWT', 'OAuth 2.0', 'GraphQL'] },
+  { category: 'Tools & Platforms', items: ['Git', 'Linux', 'Postman', 'Flyway', 'Weblogic', 'Flexcube', 'Oracle BIP'] },
 ]
+
+/**
+ * Accepts the shapes the Profile.skills column has held over time:
+ *   [{ category, items: [] }]   — current
+ *   [{ name, skills: [] }]      — older admin builds
+ *   ["Java", "SQL"]             — flat list
+ */
+export function parseSkillCategories(raw: string | null | undefined): SkillCategory[] {
+  if (!raw) return DEFAULT_SKILL_CATEGORIES
+
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_SKILL_CATEGORIES
+
+    if (typeof parsed[0] === 'string') {
+      return [{ category: 'Skills', items: parsed.filter(Boolean) }]
+    }
+
+    const groups = parsed
+      .map((g: Record<string, unknown>) => ({
+        category: String(g.category ?? g.name ?? 'Skills'),
+        items: (Array.isArray(g.items) ? g.items : Array.isArray(g.skills) ? g.skills : [])
+          .map((s: unknown) => String(s))
+          .filter(Boolean),
+      }))
+      .filter((g: SkillCategory) => g.items.length > 0)
+
+    return groups.length > 0 ? groups : DEFAULT_SKILL_CATEGORIES
+  } catch {
+    return DEFAULT_SKILL_CATEGORIES
+  }
+}
+
+/** Flattened, de-duplicated list — used by the marquee. */
+export function flattenSkills(categories: SkillCategory[]): string[] {
+  return Array.from(new Set(categories.flatMap((c) => c.items)))
+}
 
 const container = {
   hidden: { opacity: 0 },
@@ -39,10 +75,12 @@ export function SkillsMatrix({
   activeSkills,
   onSkillToggle,
   maxSkills = 5,
+  categories = DEFAULT_SKILL_CATEGORIES,
 }: {
   activeSkills: string[]
   onSkillToggle: (skill: string) => void
   maxSkills?: number
+  categories?: SkillCategory[]
 }) {
   return (
     <motion.div
@@ -52,11 +90,13 @@ export function SkillsMatrix({
       whileInView="show"
       viewport={{ once: true, margin: '-50px' }}
     >
-      {skillCategories.map((cat) => (
-        <motion.div key={cat.name} variants={item}>
-          <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">{cat.name}</h3>
+      {categories.map((cat) => (
+        <motion.div key={cat.category} variants={item}>
+          <h3 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wider">
+            {cat.category}
+          </h3>
           <div className="flex flex-wrap gap-2">
-            {cat.skills.map((skill) => {
+            {cat.items.map((skill) => {
               const isActive = activeSkills.includes(skill)
               const isMaxed = activeSkills.length >= maxSkills && !isActive
               return (
@@ -64,6 +104,7 @@ export function SkillsMatrix({
                   key={skill}
                   onClick={() => !isMaxed && onSkillToggle(skill)}
                   disabled={isMaxed}
+                  aria-pressed={isActive}
                   className={`inline-flex items-center rounded-full border px-3 py-1.5 text-xs font-medium transition-all ${
                     isActive
                       ? 'border-primary bg-primary text-primary-foreground shadow-sm'

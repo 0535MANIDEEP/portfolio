@@ -32,7 +32,11 @@ const socialLinks = [
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { theme, setTheme } = useTheme()
+  // resolvedTheme, not theme: with enableSystem the stored value can be
+  // "system", and comparing that to "dark" is always false. The toggle then
+  // set the theme to the mode already being displayed, so the first click
+  // did nothing and the button looked dead (issue #1).
+  const { resolvedTheme, setTheme } = useTheme()
   const mounted = useMounted()
   const pathname = usePathname()
 
@@ -57,9 +61,11 @@ export function Navbar() {
     setMobileOpen(false)
   }, [pathname])
 
+  const isDark = resolvedTheme === 'dark'
+
   const toggleTheme = useCallback(() => {
-    setTheme(theme === 'dark' ? 'light' : 'dark')
-  }, [theme, setTheme])
+    setTheme(isDark ? 'light' : 'dark')
+  }, [isDark, setTheme])
 
   return (
     <>
@@ -86,7 +92,7 @@ export function Navbar() {
             <NotificationBell />
             {mounted && (
               <Button variant="ghost" size="icon" className="h-9 w-9" data-theme-toggle onClick={toggleTheme} aria-label="Toggle theme">
-                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
             )}
 
@@ -182,7 +188,7 @@ export function Navbar() {
                 </div>
                 {mounted && (
                   <Button variant="outline" size="icon" className="h-9 w-9" onClick={toggleTheme} aria-label="Toggle theme">
-                    {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                   </Button>
                 )}
               </motion.div>

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/popover'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { cn } from '@/lib/utils'
+import { useAdminSession } from '@/hooks/use-admin-session'
 
 interface ContactMessage {
   id: string
@@ -39,7 +40,16 @@ function timeAgo(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString()
 }
 
+/**
+ * Inbox bell in the site navbar.
+ *
+ * This renders on every public page, and it used to fetch /api/messages
+ * unconditionally — which exposed every visitor's contact message to anyone
+ * who loaded the site. It is now admin-only on both ends: the endpoint
+ * requires a session, and the component hides itself without one.
+ */
 export function NotificationBell() {
+  const { isAdmin, loading: sessionLoading } = useAdminSession()
   const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ContactMessage[]>([])
   const [loading, setLoading] = useState(false)
@@ -49,6 +59,7 @@ export function NotificationBell() {
   const unreadCount = unreadMessages.length
 
   const fetchMessages = useCallback(async () => {
+    if (!isAdmin) return
     try {
       setLoading(true)
       const res = await fetch('/api/messages')
@@ -61,7 +72,7 @@ export function NotificationBell() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [isAdmin])
 
   useEffect(() => {
     fetchMessages()
@@ -73,6 +84,8 @@ export function NotificationBell() {
       fetchMessages()
     }
   }, [open, fetchMessages])
+
+  if (sessionLoading || !isAdmin) return null
 
   const markAsRead = async (id: string) => {
     try {
