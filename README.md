@@ -1,6 +1,9 @@
 # Gokul Saraswat — Portfolio
 
-A production-grade, full-stack portfolio website built with **Next.js 16**, **React 19**, **TypeScript**, **Tailwind CSS 4**, **Prisma + SQLite**, and **shadcn/ui**. Features a complete admin CMS, RAG-powered AI chatbot, and pixel-perfect dark/light mode.
+A production-grade, full-stack portfolio website built with **Next.js 16**, **React 19**, **TypeScript**, **Tailwind CSS 4**, **Prisma + Supabase Postgres**, and **shadcn/ui**. Features a complete admin CMS, RAG-powered AI chatbot (Google Gemini + pgvector), and pixel-perfect dark/light mode.
+
+> **Setup:** copy `.env.example` to `.env` and fill it in, then create your admin
+> account with `npm run admin:create <username>`. See [Getting started](#getting-started).
 
 ---
 
@@ -18,14 +21,14 @@ A production-grade, full-stack portfolio website built with **Next.js 16**, **Re
 - **Contact Page**: Form with validation, contact info sidebar
 - **Global Search**: Command-K style search across all content
 - **Background Music**: Autoplay on first interaction, bottom-left mute/unmute button
-- **AI Chatbot**: RAG-powered floating widget with streaming responses (requires OpenAI + Supabase pgvector setup)
+- **AI Chatbot**: RAG-powered floating widget with streaming responses and voice input (requires Google Gemini + Supabase pgvector setup)
 - **Dark/Light Mode**: System-aware with manual toggle
 - **SEO**: Auto-generated sitemap, OpenGraph/Twitter meta tags
 - **404 Page**: Animated not-found page
 - **Responsive**: Mobile-first design with sheet navigation
 
 ### Admin Panel (`/admin`)
-- **Login**: Username/password auth with rate limiting (default: `admin` / `admin123`)
+- **Login**: scrypt-hashed passwords, signed HttpOnly session cookie, rate limiting. There is no default account — create one with `npm run admin:create <username>`
 - **Dashboard**: Stats cards (blogs, projects, courses, unread messages), recent items
 - **Blog Manager**: Full CRUD, search, sort, type selector, tag management, maker-checker (written by / accepted by), markdown editor with live preview
 - **Project Manager**: Full CRUD with 20+ fields (banner, screenshots, architecture diagrams, DB schemas, ADR, CI/CD, IaC, observability, test coverage, Swagger, terminal sessions), complexity rating (1-3 stars)
@@ -33,7 +36,8 @@ A production-grade, full-stack portfolio website built with **Next.js 16**, **Re
 - **Message Manager**: Inbox with read/unread status, sort, detail view
 - **Todo Manager**: Full task management with status workflow (draft → in-progress → review → done), priority levels, assignee tracking, inline status changes, completion with remarks, archiving, per-todo history, search, sort
 - **Operation Logs**: Admin-only panel showing last 1000 operations across the entire system
-- **AI Chat Bot Settings**: Enable/disable chatbot, configure Supabase and OpenAI keys, batch RAG ingestion
+- **AI Chat Bot Settings**: Enable/disable chatbot, check Supabase/Gemini configuration, batch RAG ingestion
+- **Comment Moderation**: Search, filter by content type, inline edit, delete
 - **Backup Manager**: Export/import full database backup as JSON
 - **Profile Settings**: Edit all profile fields (name, bio, social links, skills, certifications, typing animation lines, carousel images, chatbot toggle)
 - **User Manager**: Create/manage admin users with role-based access (admin, blog_editor, project_editor, course_editor, viewer)
@@ -50,10 +54,10 @@ A production-grade, full-stack portfolio website built with **Next.js 16**, **Re
 | UI | React 19, TypeScript, Tailwind CSS 4 |
 | Components | shadcn/ui (New York style), Lucide Icons |
 | Animations | Framer Motion |
-| Database | SQLite via Prisma ORM |
+| Database | Supabase Postgres via Prisma ORM |
 | Styling | CSS Variables (oklch), tw-animate-css |
-| Auth | localStorage-based admin auth |
-| Chatbot | OpenAI GPT-4o-mini + Supabase pgvector (optional) |
+| Auth | scrypt password hashing + signed HttpOnly session cookies |
+| Chatbot | Google Gemini 2.5 Flash + Supabase pgvector (optional) |
 | Markdown | react-markdown, react-syntax-highlighter |
 | Forms | react-hook-form + zod + hookform resolvers |
 | Icons | Lucide React |
@@ -61,109 +65,98 @@ A production-grade, full-stack portfolio website built with **Next.js 16**, **Re
 ---
 
 
-## Prerequisites
+## Getting started
 
-You need exactly **one** of these runtimes installed:
+### Prerequisites
 
-| Runtime | Minimum Version | Install |
-|---------|----------------|---------|
-| **Node.js** | 20.x+ | [nodejs.org](https://nodejs.org) or `nvm install 20` |
-| **Bun** | Latest | `curl -fsSL https://bun.sh/install \| bash` |
+- **Node.js 20+** (22 LTS recommended) — [nodejs.org](https://nodejs.org)
+- A **Supabase** project (free tier is fine) for Postgres + pgvector
+- A **Google Gemini** API key, if you want the AI chatbot
 
-> **Recommended:** Node.js 22 LTS. The project works with both `npm` and `bun`, but `npm` is more universally available.
+> This project standardises on **npm**. `bun.lock` was removed to end the
+> dual-lockfile conflict; `package-lock.json` is the source of truth.
 
-For Music add background-music.mp3 in public/background-music.mp3
-
-
-
-### 1. Clone and Install
+### 1. Install
 
 ```bash
-git clone <your-repo-url>
-cd portfolio
-npm install #Install Dependencies OR: bun install
-
-You should see: `src/`, `prisma/`, `public/`, `package.json`, `seed.ts`, `.env.example`, etc.
-
-# or: bun install
+git clone https://github.com/gokulsaraswat/bestportofolio.git
+cd bestportofolio
+npm install
 ```
 
-### 2. Set Up/Create Environment file
+### 2. Configure environment
 
 ```bash
-cp .env.example .env.local
-# Edit .env.local if you want to enable the RAG chatbot means the .env
-```
-**That's it for basic usage.** The SQLite database URL is pre-configured:
-```
-DATABASE_URL="file:./db/custom.db"
+cp .env.example .env
 ```
 
-or 
+Fill in `.env`. Every variable is documented in `.env.example`.
 
-like this 
+> **Gotcha:** if your database password contains `@`, `:`, `/`, `?`, `#`, `[`, `]`
+> or `%`, it must be URL-encoded inside the connection string. An unencoded `@`
+> makes the URL parse against the wrong host and the connection fails with a
+> confusing error. `@` becomes `%40`.
 
-
-# =============================================
-# Gokul Saraswat - Portfolio Application
-# =============================================
-# Copy this file to .env.local and fill in the values
-
-# Database (SQLite - relative path from project root)
-DATABASE_URL="file:./db/custom.db"
-
-# =============================================
-# Optional: RAG Chatbot (OpenAI + Supabase pgvector)
-# =============================================
-# If these are not set, the chatbot will show a "not configured" message
-# and the admin panel's AI Chat Bot section will display setup instructions.
-
-# OpenAI API Key (for embeddings + chat completions)
-# OPENAI_API_KEY="sk-..."
-
-# Supabase Project URL
-# NEXT_PUBLIC_SUPABASE_URL="https://your-project.supabase.co"
-
-# Supabase Service Role Key (server-side only, NEVER expose to client)
-# SUPABASE_SERVICE_ROLE_KEY="eyJ..."
-
-### 3. Initialize Database
-
+Generate the session signing secret with:
 
 ```bash
-npx prisma generate    # Generates the Prisma client (TypeScript types)
-npx prisma db push     # Creates/updates SQLite tables from schema.prisma
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-Then seed with sample data:
+### 3. Set up the database
+
+```bash
+npx prisma generate
+npx prisma db push
+npm run db:check      # verifies connectivity and prints row counts
+```
+
+Optionally seed sample content:
+
 ```bash
 npx tsx seed.ts
-# OR: bun run seed
 ```
-This creates:
-- 1 admin user (`admin` / `admin123`)
-- 1 profile (your name, skills, social links)
-- 5 sample blog posts
-- 1 sample project
-- 2 sample courses
-- 17 sample todo items
 
-### 4. Run Development Server
+### 4. Create your admin account
+
+There is **no default account** — the old `admin` / `admin123` bootstrap was
+removed because it silently created a publicly-known credential on first request.
+
+```bash
+npm run admin:create yourname
+```
+
+With no password argument the script generates a strong one and prints it once.
+Store it in a password manager.
+
+If you are upgrading an existing deployment that still has plaintext passwords:
+
+```bash
+npm run admin:migrate-passwords
+```
+
+This hashes them in place and flags each account so the owner must choose a new
+password at next sign-in. A flagged account can call nothing but the
+password-change endpoint.
+
+### 5. Index content for the chatbot (optional)
+
+```bash
+npm run rag:ingest -- --purge     # embed profile, blogs, projects, courses, snippets
+npm run rag:check "what does Gokul work on?"   # verify retrieval
+```
+
+The `documents` and `chat_logs` tables and the `match_documents` function come
+from `supabase/migrations/001_rag_schema.sql`. Apply it to your Supabase project
+before ingesting, or the chatbot will fail at the vector-search step.
+
+### 6. Run
 
 ```bash
 npm run dev
-# or: bun run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
-
-### 5. Admin Access
-
-Navigate to `/admin` and log in with:
-- **Username**: `admin`
-- **Password**: `admin123`
-
-> Change the default credentials immediately after first login via the User Manager.
+Open [http://localhost:3000](http://localhost:3000), then sign in at `/admin`.
 
 ---
 
@@ -254,7 +247,7 @@ portfolio/
 ├── upload/
 │   └── Gokul_Saraswat.pdf     # Resume PDF
 ├── db/
-│   └── custom.db              # SQLite database (auto-created)
+│   └── (legacy SQLite files removed — the app uses Supabase Postgres)
 ├── seed.ts                    # Database seeder
 ├── Dockerfile                 # Multi-stage production Docker build
 ├── Caddyfile                  # Caddy reverse proxy config
@@ -299,7 +292,7 @@ portfolio/
 | **Messages** | View contact form submissions, mark read/unread, sort |
 | **Todos** | Task management: draft -> in-progress -> review -> done, priority levels, assignee, completion with remarks, archiving, per-todo history, search, sort |
 | **Operation Logs** | Admin-only panel: last 1000 operations across the entire system with filters |
-| **AI Chat Bot** | Enable/disable chatbot, configure Supabase + OpenAI keys, batch RAG ingestion |
+| **AI Chat Bot** | Enable/disable chatbot, check Supabase + Gemini configuration, batch RAG ingestion |
 | **Backup** | Export full database as JSON, import from backup |
 | **Users** | Create/manage admin accounts with roles (admin, blog_editor, project_editor, course_editor, viewer) |
 | **Settings** | Edit profile: name, bio, social links, skills, certifications, typing animation lines, carousel images, chatbot toggle |
@@ -321,12 +314,51 @@ Key features:
 
 ## Security
 
-- Rate limiting on auth endpoint (10 attempts per 15 minutes)
-- Security headers on all API routes (X-Content-Type-Options, X-Frame-Options, X-XSS-Protection, Referrer-Policy)
-- Admin panel protected from clickjacking (SAMEORIGIN frame policy)
-- `poweredByHeader` disabled to hide Next.js signature
+### Authentication
+- Passwords are **scrypt** hashes (`node:crypto`, N=16384), verified in constant
+  time. A stored value that is not a hash is refused rather than trusted.
+- Sign-in issues a **signed HttpOnly SameSite=Lax cookie** (HMAC-SHA256).
+  JavaScript cannot read or forge it. Verification uses Web Crypto so the same
+  code runs at the edge and in Node.
+- **No default account.** Seeding an admin is an explicit operator action.
+- Accounts carrying a known-compromised password are flagged
+  `mustChangePassword` and may call nothing but `/api/auth/password` — enforced
+  in the proxy *and* in every route guard, so the UI gate cannot be skipped.
+- Sign-in failures do not reveal whether a username exists.
+
+### Authorisation
+- Every mutating route calls `requireAdmin()` directly. The edge proxy is
+  defence in depth, not the only gate — internal rewrites can bypass a proxy.
+- Endpoints serving private data (`/api/backup`, `/api/messages`,
+  `/api/operation-logs`, `/api/todos`, `/api/blog-ideas`, `/api/admin-users`,
+  and comment moderation) require a session for reads as well as writes.
+- Public reads never return commenter email addresses.
+- `GET /api/messages` is side-effect free; retention cleanup is opt-in via
+  `?cleanup=true` and floors the window at 30 days.
+
+### Rate limiting
+Per-IP, per-endpoint: auth 10/15min, chat 20/10min, contact 5/hr, comments 10/hr.
+
+### Transport and headers
+- Security headers on all API routes (X-Content-Type-Options, X-Frame-Options,
+  X-XSS-Protection, Referrer-Policy)
+- Admin panel protected from clickjacking (SAMEORIGIN) and marked `no-store`
+- `poweredByHeader` disabled
 - Prisma query logging disabled in production
-- Graceful database connection shutdown
+
+### Database
+- `documents` and `chat_logs` have RLS enabled with no policies and are revoked
+  from `anon`/`authenticated`; only the server's service-role key reaches them.
+- The application tables still have **RLS disabled**. That is acceptable only
+  while the anon key is never used client-side — every query in this app goes
+  through server routes. If you ever call Supabase directly from the browser,
+  enable RLS and add policies first.
+
+### Still worth doing
+- Add TOTP enforcement (the `totpSecret`/`totpEnabled` columns exist but no flow
+  uses them yet)
+- Move rate-limit state to Redis if you run more than one instance; the current
+  map is per-process
 
 ---
 
@@ -339,44 +371,51 @@ Key features:
 | `npm run start` | Run production build on port 3000 |
 | `npm run lint` | ESLint check |
 | `npx prisma generate` | Regenerate Prisma client types |
-| `npx prisma db push` | Push schema changes to SQLite |
+| `npx prisma db push` | Push schema changes to Supabase Postgres |
 | `npx prisma studio` | Open visual database browser |
 | `npx tsx seed.ts` | Seed/refresh sample data |
-| `npm run db:push` | Alias for `prisma db push` |
-| `npm run db:generate` | Alias for `prisma generate` |
+| `npm run typecheck` | `tsc --noEmit` |
+| `npm run db:check` | Verify DB connectivity, print row counts |
+| `npm run admin:create <user>` | Create/reset an admin account |
+| `npm run admin:migrate-passwords` | Hash any legacy plaintext passwords |
+| `npm run rag:ingest` | Rebuild the RAG index (`-- --purge` to wipe first) |
+| `npm run rag:check "question"` | Test vector retrieval |
 
 ---
 
 
 ## RAG Chatbot Setup (Optional)
 
-The chatbot uses **Supabase (pgvector)** for vector storage + **OpenAI** for embeddings and chat. Typical cost: **<$1/month**.
+The chatbot uses **Supabase (pgvector)** for vector storage and **Google Gemini**
+for embeddings and chat.
 
 ### Step-by-step
 
-1. **Create a Supabase project** at [supabase.com](https://supabase.com) (Free Tier)
-2. **Run the SQL migration** in Supabase SQL Editor:
-   - Copy the full contents of `supabase/migrations/001_rag_schema.sql` and execute it
-3. **Get your API keys:**
-   - Supabase: Dashboard > Settings > API
-   - OpenAI: [platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-4. **Add to `.env.local`:**
-   ```
-   NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
-   SUPABASE_SERVICE_ROLE_KEY=eyJ...
-   OPENAI_API_KEY=sk-...
-   ```
-5. **Restart your dev server** (env changes require restart)
-6. **In Admin > AI Chat Bot:**
-   - Your keys should auto-detect
-   - Click "Batch Ingest" to embed your blog/project/course content
-   - Toggle "Show chat widget on website" to ON
-7. The floating chat widget will now appear on all public pages
+1. **Create a Supabase project** at [supabase.com](https://supabase.com) (free tier)
+2. **Run the SQL migration** in the Supabase SQL editor — copy the full contents
+   of `supabase/migrations/001_rag_schema.sql` and execute it. This creates the
+   `documents` and `chat_logs` tables plus `match_documents()`.
+   Without it, `/api/chat` fails at the vector-search step.
+3. **Get your keys** — Supabase: Dashboard > Settings > API.
+   Gemini: [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
+4. **Add them to `.env`** (see `.env.example`)
+5. **Restart the dev server** — env changes are not hot-reloaded
+6. **Index your content:** `npm run rag:ingest -- --purge`
+7. **In Admin > AI Chat Bot**, toggle "Show chat widget on website" on
 
-### How It Works
-- `/api/ingest` generates OpenAI `text-embedding-3-small` vectors and stores them in Supabase
-- `/api/chat` takes a user message, generates an embedding, finds the top 5 most relevant chunks via cosine similarity, then sends the context + question to `gpt-4o-mini` with streaming
-- Chat history is session-only (cleared on page refresh) — no persistent chat storage
+### How it works
+- `scripts/rag-ingest.mjs` chunks each blog, project, course, snippet and the
+  profile, embeds them with `gemini-embedding-001` (768 dims) and upserts them
+  into `documents`, keyed by `(type, source_id)` so re-running replaces a
+  source's chunks rather than duplicating them
+- `/api/chat` embeds the question, retrieves the top 5 chunks by cosine
+  similarity via `match_documents()`, then streams an answer from
+  `gemini-2.5-flash` grounded only in that context
+- The chat widget supports voice input via the Web Speech API, degrading
+  gracefully where unsupported
+- Chat history is session-only — nothing is persisted
+- `/api/chat` is public, so it is rate limited to 20 requests per 10 minutes
+  per IP to bound Gemini spend
 
 ---
 
@@ -415,7 +454,7 @@ npm i -g vercel
 vercel
 ```
 
-> For Vercel: Set env vars in the dashboard. Use Backup Manager to export your local SQLite DB and import it in production.
+> For Vercel: set env vars in the dashboard. Data already lives in Supabase, so no database import is needed — but do set `AUTH_SECRET` and keep `SUPABASE_SERVICE_ROLE_KEY` server-side only.
 
 ---
 
@@ -455,10 +494,14 @@ PORT=4000 npm run dev
 | Issue | Solution |
 |-------|---------|
 | `prisma generate` fails | Ensure Node.js 20+ is installed. Run `npm install -D @prisma/client prisma` then retry |
-| `npx prisma db push` says "No datasource" | Make sure `.env.local` exists and contains `DATABASE_URL="file:./db/custom.db"` |
-| Port 3000 already in use | Run `PORT=3001 npm run dev` or kill the process on 3000: `lsof -ti:3000 \| xargs kill` |
-| Chatbot shows "not configured" | Either set the 3 env vars (OPENAI_API_KEY, NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) or ignore it — the site works perfectly without the chatbot |
-| Seed fails with "unique constraint" | The seed uses `upsert`, so re-running it is safe. If it still fails, delete `db/custom.db` and run `npx prisma db push` again |
+| `npx prisma db push` says "No datasource" | Make sure `.env` exists and contains `DATABASE_URL` and `DIRECT_URL` |
+| Database connection fails with a host error | Your password almost certainly contains an unencoded special character. `@` must be `%40` inside the connection string. |
+| Port 3000 already in use | Run `npx next dev -p 3001`, or kill the process on 3000 |
+| Chatbot shows "not configured" | Set `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` and `GEMINI_API_KEY`, then restart. The site works fine without the chatbot. |
+| Chatbot answers "I don't have that information" for everything | The RAG index is empty or the schema is missing. Run `npm run rag:ingest -- --purge`, then `npm run rag:check "test"`. |
+| Cannot sign in to `/admin` | There is no default account. Run `npm run admin:create <username>`. |
+| Signed in but every action returns 403 | The account is flagged `mustChangePassword`. Set a new password when prompted. |
+| Seed fails with "unique constraint" | The seed uses `upsert`, so re-running is safe |
 | Images not loading | Place your images in `public/` folder. They're accessible at `/filename.ext` |
 | Build fails with type errors | Run `npx prisma generate` first, then `npm run build` |
 | Docker build fails | Ensure you have Docker 20+. If using Bun lockfile, the Dockerfile handles it via `bun install --frozen-lockfile` |
@@ -469,12 +512,26 @@ PORT=4000 npm run dev
 
 ## Environment Variables
 
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes | `file:./db/custom.db` | SQLite database path (relative to project root) |
-| `OPENAI_API_KEY` | No (chatbot only) | — | OpenAI API key for embeddings + chat |
-| `NEXT_PUBLIC_SUPABASE_URL` | No (chatbot only) | — | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | No (chatbot only) | — | Supabase service role key (server-side only) |
+See `.env.example` for the annotated version.
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | Supabase Postgres, **transaction** pooler (port 6543). URL-encode special characters in the password — `@` must be `%40`. |
+| `DIRECT_URL` | Yes | Supabase Postgres, **session** pooler (port 5432). Used by `prisma migrate` / `db push`. |
+| `AUTH_SECRET` | Yes | Signs the admin session cookie. 32+ chars. Changing it invalidates all sessions. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Chatbot only | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Chatbot only | Service role key — **server-side only**, never expose to the browser |
+| `GEMINI_API_KEY` | Chatbot only | Google Gemini key for embeddings + chat |
+
+---
+
+## Pre-flight checks
+
+```bash
+npm run lint
+npm run typecheck
+npm run build
+```
 
 ---
 
@@ -483,20 +540,3 @@ PORT=4000 npm run dev
 Private — All rights reserved.
 
 Built by [Gokul Saraswat](https://gokulsaraswat.com)
-
-
-
-Commands
-
-git add * 
-git commit -m "Commit #2 fix: add prisma generate to postinstall for vercel build " 
-git push origin main
-
-To Check before running if any error is there run 
-npm run lint       # fix warnings first
-npx tsc --noEmit   # fix type errors
-npm run build      # final confirmation This is ok vercel is ok   
-npx prisma generate
-npx prisma db pull
-creates a file with errors
-(echo "=== LINT ===" && npm run lint; echo "=== TSC ===" && npx tsc --noEmit; echo "=== BUILD ===" && npm run build) 2>&1 | tee all-errors.txt
