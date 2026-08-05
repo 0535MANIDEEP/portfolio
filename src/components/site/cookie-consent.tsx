@@ -10,7 +10,8 @@ const CONSENT_KEY = 'cookie-consent-v1'
 /**
  * CookieConsent — non-intrusive bottom banner that appears once.
  * Stores consent in localStorage. Respects prior choice.
- * Purely informational (this site uses localStorage for theme/admin auth).
+ * Informational: theme preference is kept in localStorage, and admin sign-in
+ * uses a strictly-necessary HttpOnly session cookie. No tracking cookies.
  */
 export function CookieConsent() {
   const [visible, setVisible] = useState(false)

@@ -383,7 +383,7 @@ export function BlogIdeasManager() {
             </SelectContent>
           </Select>
 
-          <Select value={sortBy} onValueChange={setSortBy}>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
             <SelectTrigger className="w-[150px] h-9 text-xs">
               <span className="flex items-center gap-1.5">
                 <ArrowDownUp className="h-3 w-3 text-muted-foreground" />

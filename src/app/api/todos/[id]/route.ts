@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAdmin } from '@/lib/require-admin'
 
 function diffFields(oldRec: Record<string, unknown>, newBody: Record<string, unknown>): Array<{ field: string; oldValue: string; newValue: string }> {
   const changes: Array<{ field: string; oldValue: string; newValue: string }> = []
@@ -13,6 +14,9 @@ function diffFields(oldRec: Record<string, unknown>, newBody: Record<string, unk
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -70,6 +74,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const { id } = await params
     await db.todo.delete({ where: { id } })

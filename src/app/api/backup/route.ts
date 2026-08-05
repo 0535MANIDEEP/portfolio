@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAdmin } from '@/lib/require-admin'
 
 export async function GET(request: NextRequest) {
+  // This endpoint dumps every table, including contact messages and admin
+  // accounts. It was previously reachable by anyone.
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     // FIX: Support entity filtering via query param
     const { searchParams } = new URL(request.url)
@@ -57,6 +63,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     // Support both JSON body and FormData
     let body: { data?: Record<string, unknown> }

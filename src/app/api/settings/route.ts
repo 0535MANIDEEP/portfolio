@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { requireAdmin } from '@/lib/require-admin'
 
 // ─── Mapping: settings UI keys → Profile model fields ────────────
 const PROFILE_FIELD_MAP: Record<string, string> = {
@@ -72,6 +73,9 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const body = await request.json()
     const existing = await db.profile.findFirst()

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logOperation, logError } from '@/lib/log-operation'
+import { requireAdmin } from '@/lib/require-admin'
 
 const VALID_STATUSES = ['idea', 'drafting', 'review', 'published']
 const VALID_PRIORITIES = ['low', 'medium', 'high']
@@ -35,6 +36,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -111,9 +115,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+
+  const denied = await requireAdmin(request)
+  if (denied) return denied
   try {
     const { id } = await params
     const existing = await db.blogIdea.findUnique({ where: { id } })

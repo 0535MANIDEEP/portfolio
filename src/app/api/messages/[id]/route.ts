@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logOperation } from '@/lib/log-operation'
+import { requireAdmin } from '@/lib/require-admin'
 
 interface RouteParams {
   params: Promise<{ id: string }>
@@ -20,6 +21,9 @@ interface RouteParams {
  * If `replied` is false, `repliedAt` is cleared.
  */
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const { id } = await params
 
@@ -104,7 +108,10 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
  * DELETE /api/messages/[id]
  * Immediate delete of a single message. Logs the action.
  */
-export async function DELETE(_request: NextRequest, { params }: RouteParams) {
+export async function DELETE(request: NextRequest, { params }: RouteParams) {
+
+  const denied = await requireAdmin(request)
+  if (denied) return denied
   try {
     const { id } = await params
 

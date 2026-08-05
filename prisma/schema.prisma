@@ -11,6 +11,7 @@ datasource db {
 model AdminUser {
   id          String   @id @default(cuid())
   username    String   @unique
+  /// scrypt hash in the form scrypt$N$r$p$salt$hash — never plaintext
   password    String
   role        String   @default("admin")
   totpSecret  String   @default("")
@@ -18,6 +19,9 @@ model AdminUser {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   permissions String   @default("")
+  /// Forces a password reset at next sign-in (set for accounts migrated off the default password)
+  mustChangePassword Boolean @default(false)
+  lastLoginAt        DateTime?
 }
 
 model Profile {

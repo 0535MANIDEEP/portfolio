@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateSlug } from '@/lib/slug'
 import { logOperation, logError } from '@/lib/log-operation'
+import { requireAdmin } from '@/lib/require-admin'
 
 /**
  * Coerce a resourceLinks payload into a JSON string.
@@ -60,6 +61,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -135,9 +139,12 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+
+  const denied = await requireAdmin(request)
+  if (denied) return denied
   try {
     const { id } = await params
     const existing = await db.blogPost.findUnique({ where: { id } })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateSlug } from '@/lib/slug'
 import { logOperation, logError } from '@/lib/log-operation'
+import { requireAdmin } from '@/lib/require-admin'
 
 export async function GET(
   _request: NextRequest,
@@ -55,6 +56,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const { id } = await params
     const body = await request.json()
@@ -126,11 +130,18 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
+  // Resolved outside the try so the catch block can still report which
+  // project failed — it previously referenced an out-of-scope `id`.
+  const { id } = await params
+
   try {
-    const { id } = await params
     const existing = await db.project.findUnique({ where: { id } })
     if (!existing) {
       return NextResponse.json(

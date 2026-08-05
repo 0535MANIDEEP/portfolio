@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { logOperation } from '@/lib/log-operation'
+import { requireAdmin } from '@/lib/require-admin'
 
 /**
  * GET /api/messages
@@ -10,36 +11,48 @@ import { logOperation } from '@/lib/log-operation'
  * Feature #18: Auto-cleanup of messages older than the retention window. Logs the deletion count.
  */
 export async function GET(request: NextRequest) {
+  // Contact messages are private correspondence — admin only.
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     // --- Auto-cleanup of old messages -------------------------------------
-    const retentionParam = request.nextUrl.searchParams.get('retentionDays')
-    const retentionDays = Math.max(
-      1,
-      Number.isFinite(Number(retentionParam)) && retentionParam
-        ? parseInt(retentionParam, 10)
-        : 90
-    )
-    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
-
+    // Deliberately opt-in via ?cleanup=true. This used to run on every GET,
+    // which meant a plain read could destroy data — and with retentionDays=1
+    // an unauthenticated caller could wipe the inbox. A GET must be safe by
+    // default, and the retention floor guards against fat-fingered values.
+    const wantsCleanup = request.nextUrl.searchParams.get('cleanup') === 'true'
     let deletedCount = 0
-    try {
-      const result = await db.contactMessage.deleteMany({
-        where: { createdAt: { lt: cutoff } },
-      })
-      deletedCount = result.count
-      if (deletedCount > 0) {
-        console.log(
-          `[messages] Auto-cleanup: deleted ${deletedCount} message(s) older than ${retentionDays} day(s).`
-        )
-        await logOperation({
-          action: 'message.auto_cleanup',
-          entityType: 'ContactMessage',
-          details: `Auto-deleted ${deletedCount} message(s) older than ${retentionDays} day(s) (cutoff ${cutoff.toISOString()}).`,
+
+    if (wantsCleanup) {
+      const MIN_RETENTION_DAYS = 30
+      const retentionParam = request.nextUrl.searchParams.get('retentionDays')
+      const parsed = retentionParam ? parseInt(retentionParam, 10) : NaN
+      const retentionDays = Math.max(
+        MIN_RETENTION_DAYS,
+        Number.isFinite(parsed) ? parsed : 90
+      )
+      const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+
+      try {
+        const result = await db.contactMessage.deleteMany({
+          where: { createdAt: { lt: cutoff } },
         })
+        deletedCount = result.count
+        if (deletedCount > 0) {
+          console.log(
+            `[messages] Cleanup: deleted ${deletedCount} message(s) older than ${retentionDays} day(s).`
+          )
+          await logOperation({
+            action: 'message.auto_cleanup',
+            entityType: 'ContactMessage',
+            details: `Deleted ${deletedCount} message(s) older than ${retentionDays} day(s) (cutoff ${cutoff.toISOString()}).`,
+          })
+        }
+      } catch (cleanupErr) {
+        // Cleanup is best-effort — never block the list response on it.
+        console.error('[messages] Cleanup failed:', cleanupErr)
       }
-    } catch (cleanupErr) {
-      // Cleanup is best-effort — never block the list response on it.
-      console.error('[messages] Auto-cleanup failed:', cleanupErr)
     }
 
     // --- Return remaining messages ---------------------------------------
@@ -63,6 +76,9 @@ export async function GET(request: NextRequest) {
  * Legacy bulk-update endpoint — kept for backwards compatibility. Prefer PATCH /api/messages/[id].
  */
 export async function PUT(request: NextRequest) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const body = await request.json()
 
@@ -125,6 +141,9 @@ export async function PUT(request: NextRequest) {
  *   Body: { ids: string[] }
  */
 export async function DELETE(request: NextRequest) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const body = await request.json().catch(() => ({}))
 

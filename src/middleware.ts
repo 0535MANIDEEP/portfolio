@@ -1,9 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { SESSION_COOKIE, verifySessionToken } from '@/lib/session'
 
-// Rate limiter for auth endpoint
+/**
+ * Edge middleware: rate limiting + the outer half of admin authorisation.
+ *
+ * The previous version accepted any request carrying an arbitrary
+ * `x-admin-auth` header, and waved through anything same-origin — which
+ * included every curl request, since those send no Origin header at all.
+ * It now verifies a real signed session cookie.
+ *
+ * This is defence in depth, not the only check: each mutating route handler
+ * independently calls requireAdmin(). Middleware can be bypassed by internal
+ * rewrites, so it must never be the sole gate.
+ */
+
 const authAttempts = new Map<string, { count: number; resetAt: number }>()
 const MAX_AUTH_ATTEMPTS = 10
-const AUTH_WINDOW_MS = 15 * 60 * 1000 // 15 minutes
+const AUTH_WINDOW_MS = 15 * 60 * 1000
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now()
@@ -14,17 +27,34 @@ function isRateLimited(ip: string): boolean {
     return false
   }
 
+  // Opportunistic cleanup so the map cannot grow without bound.
+  if (authAttempts.size > 5000) {
+    for (const [key, value] of authAttempts) {
+      if (now > value.resetAt) authAttempts.delete(key)
+    }
+  }
+
   entry.count++
   return entry.count > MAX_AUTH_ATTEMPTS
 }
 
+/** Endpoints the public site legitimately writes to without being an admin. */
+const PUBLIC_WRITE_ROUTES = [
+  '/api/contact', // contact form
+  '/api/comments', // visitors posting comments (DELETE is guarded in the handler)
+  '/api/auth', // sign in / sign out
+]
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH'])
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Rate limit the auth endpoint
   if (pathname === '/api/auth' && request.method === 'POST') {
-    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      request.headers.get('x-real-ip') || 'unknown'
+    const ip =
+      request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      request.headers.get('x-real-ip') ||
+      'unknown'
 
     if (isRateLimited(ip)) {
       return NextResponse.json(
@@ -34,59 +64,36 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Protect write API routes with a simple check
-  // (admin panel handles real auth via localStorage token)
-  // This middleware adds defense-in-depth
-  const protectedMethods = ['POST', 'PUT', 'DELETE', 'PATCH']
-  const protectedApiRoutes = [
-    '/api/blogs',
-    '/api/projects',
-    '/api/courses',
-    '/api/todos',
-    '/api/profile',
-    '/api/backup',
-    '/api/ingest',
-    '/api/operation-logs',
-    '/api/admin-users',
-  ]
+  // Guard every mutating API call except the explicitly public ones.
+  if (pathname.startsWith('/api/') && MUTATING_METHODS.has(request.method)) {
+    const isPublicWrite = PUBLIC_WRITE_ROUTES.some(
+      (route) => pathname === route || pathname.startsWith(route + '/')
+    )
 
-  if (protectedMethods.includes(request.method)) {
-    const isProtected = protectedApiRoutes.some(route => pathname.startsWith(route))
-    if (isProtected) {
-      const authHeader = request.headers.get('authorization')
-      const adminAuth = request.headers.get('x-admin-auth')
-
-      // Accept either Authorization header or x-admin-auth header
-      if (!authHeader && !adminAuth) {
-        // Allow through if it's from the admin page (same origin)
-        // The admin panel uses localStorage-based auth which is checked client-side
-        // This middleware adds an extra layer but doesn't block same-origin requests
-        const origin = request.headers.get('origin')
-        const host = request.headers.get('host')
-        if (origin && origin !== `http://${host}` && origin !== `https://${host}`) {
-          return NextResponse.json(
-            { error: 'Unauthorized' },
-            { status: 401 }
-          )
-        }
+    if (!isPublicWrite) {
+      const session = await verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value)
+      if (!session) {
+        return NextResponse.json({ error: 'Unauthorized. Admin sign-in required.' }, { status: 401 })
+      }
+      // Signed in with a credential we already know is compromised — the only
+      // action allowed is replacing it.
+      if (session.mustChangePassword) {
+        return NextResponse.json(
+          { error: 'Password change required before performing this action.' },
+          { status: 403 }
+        )
       }
     }
   }
 
-  // Add security headers to all responses
   const response = NextResponse.next()
-
-  // Prevent clickjacking on admin pages
   if (pathname.startsWith('/admin')) {
     response.headers.set('X-Frame-Options', 'SAMEORIGIN')
+    response.headers.set('Cache-Control', 'no-store, must-revalidate')
   }
-
   return response
 }
 
 export const config = {
-  matcher: [
-    '/api/:path*',
-    '/admin/:path*',
-  ],
+  matcher: ['/api/:path*', '/admin/:path*'],
 }

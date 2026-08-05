@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateSlug } from '@/lib/slug'
 import { logOperation, logError } from '@/lib/log-operation'
+import { requireAdmin } from '@/lib/require-admin'
 
 /**
  * Coerce a resourceLinks payload into a JSON string.
@@ -103,6 +104,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = await requireAdmin(request)
+  if (denied) return denied
+
   try {
     const body = await request.json()
 
