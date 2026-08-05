@@ -17,6 +17,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Navbar, Footer } from '@/components/site/navbar'
 import { EmbedList } from "@/components/embed-renderer"
 import { Breadcrumbs } from '@/components/site/breadcrumbs'
+import { CommentSection } from '@/components/site/comment-section'
 
 interface Chapter {
   id: string; title: string; slug: string; content: string
@@ -457,6 +458,11 @@ export default function CourseDetailPage() {
                   <p className="text-sm text-muted-foreground">Select a chapter from the sidebar to start reading.</p>
                 </div>
               )}
+
+              {/* Courses previously had no discussion thread, unlike blogs
+                  and projects. Keyed by course slug, not chapter, so one
+                  conversation covers the whole course. */}
+              {course && <CommentSection entityType="course" entityId={course.slug} />}
             </motion.div>
           </div>
         </div>

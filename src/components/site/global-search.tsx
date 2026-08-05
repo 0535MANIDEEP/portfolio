@@ -50,6 +50,16 @@ export function GlobalSearch() {
     return () => window.removeEventListener('keydown', down)
   }, [])
 
+  // Declared before the effect that calls it: it was defined further down the
+  // component and referenced here, and was also missing from the dependency
+  // array, so the listener could close over a stale router.
+  const handleSelect = useCallback((result: SearchResult) => {
+    setOpen(false)
+    setQuery('')
+    const pathMap = { blog: '/blog/', project: '/projects/', course: '/courses/', snippet: '/snippets?view=' }
+    router.push(pathMap[result.type] + result.slug)
+  }, [router])
+
   // Keyboard navigation within results (arrow keys + Enter)
   useEffect(() => {
     if (!open) return
@@ -67,7 +77,7 @@ export function GlobalSearch() {
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [open, results, activeIndex])
+  }, [open, results, activeIndex, handleSelect])
 
   // Reset active index when results change
   useEffect(() => {
@@ -102,13 +112,6 @@ export function GlobalSearch() {
     }, 200)
     return () => clearTimeout(timer)
   }, [query])
-
-  const handleSelect = useCallback((result: SearchResult) => {
-    setOpen(false)
-    setQuery('')
-    const pathMap = { blog: '/blog/', project: '/projects/', course: '/courses/', snippet: '/snippets?view=' }
-    router.push(pathMap[result.type] + result.slug)
-  }, [router])
 
   const typeIcons = { blog: FileText, project: FolderKanban, course: GraduationCap, snippet: Code2 }
   const typeLabels = { blog: 'Blog', project: 'Project', course: 'Course', snippet: 'Snippet' }

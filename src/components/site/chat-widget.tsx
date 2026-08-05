@@ -94,7 +94,9 @@ export function ChatWidget() {
 
   // ---------------------- Voice input state ----------------------
   const { toast } = useToast()
-  const recognitionCtor = useMemo(getSpeechRecognitionCtor, [])
+  // Inline arrow, not a bare reference: the React Compiler lint rule requires
+  // the first argument to useMemo to be an inline function expression.
+  const recognitionCtor = useMemo(() => getSpeechRecognitionCtor(), [])
   const speechSupported = recognitionCtor !== null
 
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
@@ -131,6 +133,24 @@ export function ChatWidget() {
         recognitionRef.current = null
       }
     }
+  }, [])
+
+  // Declared before sendMessage, which calls it. It used to be defined ~180
+  // lines further down and was missing from sendMessage's dependency array.
+  const stopListening = useCallback(() => {
+    const rec = recognitionRef.current
+    if (!rec) {
+      setListening(false)
+      return
+    }
+    try {
+      rec.stop()
+    } catch {
+      /* noop */
+    }
+    // onend will clear listening state, but set it defensively in case onend
+    // doesn't fire (some browsers are flaky).
+    setListening(false)
   }, [])
 
   const sendMessage = useCallback(async () => {
@@ -203,7 +223,7 @@ export function ChatWidget() {
     } finally {
       setLoading(false)
     }
-  }, [input, loading, messages, listening])
+  }, [input, loading, messages, listening, stopListening])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -316,22 +336,6 @@ export function ChatWidget() {
       })
     }
   }, [recognitionCtor, listening, input, toast])
-
-  const stopListening = useCallback(() => {
-    const rec = recognitionRef.current
-    if (!rec) {
-      setListening(false)
-      return
-    }
-    try {
-      rec.stop()
-    } catch {
-      /* noop */
-    }
-    // onend will clear listening state, but set it defensively in case onend
-    // doesn't fire (some browsers are flaky).
-    setListening(false)
-  }, [])
 
   const toggleListening = useCallback(() => {
     if (listening) stopListening()

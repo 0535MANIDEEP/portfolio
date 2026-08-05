@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useToast } from '@/hooks/use-toast'
+import { InfoTip } from '@/components/admin/info-tip'
 
 interface ProfileData {
   chatBotEnabled: boolean
@@ -289,13 +290,20 @@ useEffect(() => {
               {configStatus === 'ok' && 'API routes are reachable'}
               {configStatus === 'missing' && 'API keys not configured — see .env.example'}
             </span>
-          </div>
-
-          <div className="rounded-lg bg-muted/50 p-3 space-y-2 text-xs">
-            <p className="font-medium text-muted-foreground">Required .env.local variables:</p>
-            <code className="block text-[11px] bg-background rounded px-2 py-1">NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co</code>
-            <code className="block text-[11px] bg-background rounded px-2 py-1">SUPABASE_SERVICE_ROLE_KEY=eyJ...</code>
-            <code className="block text-[11px] bg-background rounded px-2 py-1">GEMINI_API_KEY=sk-...</code>
+            {/* Issue #3: the env-var reference used to be a permanent block
+                of text taking up a third of this card. */}
+            <InfoTip
+              label="Required environment variables"
+              details={
+                <>
+                  <p>Set these in <code className="font-mono">.env</code> at the project root, then restart the dev server.</p>
+                  <code className="block bg-muted rounded px-2 py-1 text-[11px]">NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co</code>
+                  <code className="block bg-muted rounded px-2 py-1 text-[11px]">SUPABASE_SERVICE_ROLE_KEY=eyJ...</code>
+                  <code className="block bg-muted rounded px-2 py-1 text-[11px]">GEMINI_API_KEY=...</code>
+                  <p>Never commit this file — it is gitignored.</p>
+                </>
+              }
+            />
           </div>
 
           <Button variant="outline" size="sm" onClick={checkConfig} className="gap-1.5">

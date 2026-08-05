@@ -22,6 +22,7 @@ import {
   Code2,
   ScrollText,
   Lightbulb,
+  MessageSquare,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -45,6 +46,7 @@ import { TodoManager } from './todo-manager'
 import { UserManager } from './user-manager'
 import { RagSettings } from './rag-settings'
 import { SnippetManager } from './snippet-manager'
+import { CommentManager } from './comment-manager'
 import OperationLogsViewer from "./operation-logs-viewer";
 import { BlogIdeasManager } from './blog-ideas-manager'
 
@@ -65,6 +67,7 @@ const navItems: NavItem[] = [
   { id: 'snippets', label: 'Snippets', icon: Code2 },
   { id: 'logs', label: 'Logs', icon: ScrollText },
   { id: 'messages', label: 'Messages', icon: Mail },
+  { id: 'comments', label: 'Comments', icon: MessageSquare },
   { id: 'todos', label: 'Todos', icon: CheckSquare },
   { id: 'rag-bot', label: 'AI Chat Bot', icon: Bot },
   { id: 'backup', label: 'Backup', icon: Database },
@@ -245,6 +248,8 @@ export function AdminLayout({ onLogout, role = 'admin' }: { onLogout: () => void
         return <OperationLogsViewer />
       case 'messages':
         return <MessageManager />
+      case 'comments':
+        return <CommentManager />
       case 'todos':
         return <TodoManager />
       case 'rag-bot':

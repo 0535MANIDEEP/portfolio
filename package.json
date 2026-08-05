@@ -3,14 +3,20 @@
   "version": "0.2.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
+    "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "NODE_ENV=production bun .next/standalone/server.js 2>&1 | tee server.log",
+    "start": "next start -p 3000",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
+    "db:check": "node --env-file=.env scripts/db-check.mjs",
+    "admin:create": "node --env-file=.env scripts/create-admin.mjs",
+    "admin:migrate-passwords": "node --env-file=.env scripts/migrate-passwords.mjs",
+    "rag:ingest": "node --env-file=.env scripts/rag-ingest.mjs",
+    "rag:check": "node --env-file=.env scripts/rag-check.mjs",
     "postinstall": "prisma generate"
   },
   "dependencies": {

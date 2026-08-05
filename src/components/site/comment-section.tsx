@@ -9,20 +9,25 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/hooks/use-toast'
+import { useAppSettings } from '@/hooks/use-app-settings'
 import { format } from 'date-fns'
 
 interface Comment {
   id: string
   name: string
-  email: string
   content: string
   entityType: string
   entityId: string
   createdAt: string
 }
 
+const MAX_CONTENT = 4000
+
 export function CommentSection({ entityType, entityId }: { entityType: string; entityId: string }) {
   const { toast } = useToast()
+  // enableComments existed in site settings but nothing honoured it, so
+  // turning comments off in admin had no effect on the public site.
+  const { enableComments, loading: settingsLoading } = useAppSettings()
   const [comments, setComments] = useState<Comment[]>([])
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ name: '', email: '', content: '' })
@@ -56,16 +61,33 @@ export function CommentSection({ entityType, entityId }: { entityType: string; e
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, entityType, entityId }),
       })
-      if (!res.ok) throw new Error()
+
+      if (!res.ok) {
+        // Surface the server's reason (spam, too long, rate limited) rather
+        // than a generic failure the visitor cannot act on.
+        const data = await res.json().catch(() => null)
+        const reason =
+          res.status === 429
+            ? 'You are posting too quickly. Please try again later.'
+            : data?.error || 'Failed to post comment'
+        throw new Error(reason)
+      }
+
       toast({ title: 'Comment posted!' })
       setForm({ name: '', email: '', content: '' })
       fetchComments()
-    } catch {
-      toast({ title: 'Failed to post comment', variant: 'destructive' })
+    } catch (err) {
+      toast({
+        title: err instanceof Error ? err.message : 'Failed to post comment',
+        variant: 'destructive',
+      })
     } finally {
       setSubmitting(false)
     }
   }
+
+  if (settingsLoading) return null
+  if (enableComments === false) return null
 
   return (
     <motion.div
@@ -109,13 +131,23 @@ export function CommentSection({ entityType, entityId }: { entityType: string; e
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`cmt-content-${entityId}`}>Comment *</Label>
+              <div className="flex items-baseline justify-between">
+                <Label htmlFor={`cmt-content-${entityId}`}>Comment *</Label>
+                <span
+                  className={`text-xs tabular-nums ${
+                    form.content.length > MAX_CONTENT ? 'text-destructive' : 'text-muted-foreground'
+                  }`}
+                >
+                  {form.content.length}/{MAX_CONTENT}
+                </span>
+              </div>
               <Textarea
                 id={`cmt-content-${entityId}`}
                 placeholder="Share your thoughts..."
                 value={form.content}
                 onChange={e => setForm(f => ({ ...f, content: e.target.value }))}
                 rows={3}
+                maxLength={MAX_CONTENT}
               />
             </div>
             <Button type="submit" disabled={submitting} size="sm" className="gap-1.5">
