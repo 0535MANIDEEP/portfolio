@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState, useCallback, useMemo } from 'react'
-import { Plus, Pencil, Trash2, ExternalLink, Github, Download, ChevronDown, ChevronUp, Search, X } from 'lucide-react'
+import { Plus, Pencil, Trash2, ExternalLink, Github, Download, ChevronDown, ChevronUp, Search, X, Network, GripVertical } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,24 @@ import { SortBar, SortOption } from './sort-bar'
 import { ContributorsInput } from "@/components/contributors-input"
 import { SeoPreview } from "@/components/admin/seo-preview"
 
+export type ArchitectureDiagramType = 'hld' | 'lld' | 'dfd' | 'sequence' | 'erd' | 'other'
+
+export interface ArchitectureDiagram {
+  title: string
+  url: string
+  description: string
+  type: ArchitectureDiagramType
+}
+
+export const DIAGRAM_TYPE_OPTIONS: { value: ArchitectureDiagramType; label: string; description: string }[] = [
+  { value: 'hld', label: 'HLD', description: 'High-Level Design' },
+  { value: 'lld', label: 'LLD', description: 'Low-Level Design' },
+  { value: 'dfd', label: 'DFD', description: 'Data Flow Diagram' },
+  { value: 'sequence', label: 'Sequence', description: 'Sequence Diagram' },
+  { value: 'erd', label: 'ERD', description: 'Entity-Relationship Diagram' },
+  { value: 'other', label: 'Other', description: 'Other diagram type' },
+]
+
 interface Project {
   id: string
   title: string
@@ -74,6 +93,10 @@ interface Project {
   complexity: number
   createdAt: string
   updatedAt: string
+  architectureDiagrams: string
+  contributors: string
+  showTeam: boolean
+  embeds: string
 }
 
 interface ProjectForm {
@@ -105,6 +128,10 @@ interface ProjectForm {
   behindTheScenes: string
   featured: boolean
   complexity: number
+  architectureDiagrams: ArchitectureDiagram[]
+  contributors: string
+  showTeam: boolean
+  embeds: string
 }
 
 const emptyForm: ProjectForm = {
@@ -136,6 +163,10 @@ const emptyForm: ProjectForm = {
   behindTheScenes: '',
   featured: false,
   complexity: 1,
+  architectureDiagrams: [],
+  contributors: '[]',
+  showTeam: false,
+  embeds: '[]',
 }
 
 const projectSortOptions: SortOption[] = [
@@ -170,6 +201,24 @@ function parseScreenshots(screenshots: string): string[] {
     if (Array.isArray(parsed)) return parsed
   } catch { }
   return screenshots.split('\n').map((s) => s.trim()).filter(Boolean)
+}
+
+function parseArchitectureDiagrams(raw: string | undefined | null): ArchitectureDiagram[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .filter((d) => d && typeof d === 'object')
+      .map((d) => ({
+        title: typeof d.title === 'string' ? d.title : '',
+        url: typeof d.url === 'string' ? d.url : '',
+        description: typeof d.description === 'string' ? d.description : '',
+        type: (DIAGRAM_TYPE_OPTIONS.some((o) => o.value === d.type) ? d.type : 'other') as ArchitectureDiagramType,
+      }))
+  } catch {
+    return []
+  }
 }
 
 function FieldSection({ title, children, defaultOpen = false, className = '' }: { title: string; children: React.ReactNode; defaultOpen?: boolean; className?: string }) {
@@ -285,9 +334,48 @@ export function ProjectManager() {
       behindTheScenes: project.behindTheScenes || '',
       featured: project.featured,
       complexity: project.complexity || 1,
+      architectureDiagrams: parseArchitectureDiagrams(project.architectureDiagrams),
+      contributors: project.contributors || '[]',
+      showTeam: project.showTeam || false,
+      embeds: project.embeds || '[]',
     })
     setEditorOpen(true)
   }
+
+  // --- Architecture diagrams helpers ---
+  const addDiagram = useCallback(() => {
+    setForm((f) => ({
+      ...f,
+      architectureDiagrams: [
+        ...f.architectureDiagrams,
+        { title: '', url: '', description: '', type: 'hld' as ArchitectureDiagramType },
+      ],
+    }))
+  }, [])
+
+  const updateDiagram = useCallback((index: number, patch: Partial<ArchitectureDiagram>) => {
+    setForm((f) => ({
+      ...f,
+      architectureDiagrams: f.architectureDiagrams.map((d, i) => (i === index ? { ...d, ...patch } : d)),
+    }))
+  }, [])
+
+  const removeDiagram = useCallback((index: number) => {
+    setForm((f) => ({
+      ...f,
+      architectureDiagrams: f.architectureDiagrams.filter((_, i) => i !== index),
+    }))
+  }, [])
+
+  const moveDiagram = useCallback((index: number, dir: -1 | 1) => {
+    setForm((f) => {
+      const arr = [...f.architectureDiagrams]
+      const target = index + dir
+      if (target < 0 || target >= arr.length) return f
+      ;[arr[index], arr[target]] = [arr[target], arr[index]]
+      return { ...f, architectureDiagrams: arr }
+    })
+  }, [])
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -335,6 +423,12 @@ export function ProjectManager() {
         behindTheScenes: form.behindTheScenes,
         featured: form.featured,
         complexity: form.complexity,
+        // Multi-diagram architecture gallery — send as an array; API normalizes to JSON string.
+        architectureDiagrams: form.architectureDiagrams,
+        // Team / contributors / embeds (kept in sync with DB)
+        contributors: form.contributors,
+        showTeam: form.showTeam,
+        embeds: form.embeds,
       }
 
       if (!editingProject) {
@@ -450,6 +544,7 @@ export function ProjectManager() {
                 <TableBody>
                   {sortedProjects.map((project) => {
                     const stack = parseStack(project.stack)
+                    const diagramCount = parseArchitectureDiagrams(project.architectureDiagrams).length
                     return (
                       <TableRow key={project.id}>
                         <TableCell>
@@ -478,6 +573,11 @@ export function ProjectManager() {
                           <div className="flex gap-1 flex-wrap">
                             {project.featured && <Badge className="text-xs">Featured</Badge>}
                             {project.downloadLink && <Badge variant="outline" className="text-xs gap-1"><Download className="h-3 w-3" />App</Badge>}
+                            {diagramCount > 0 && (
+                              <Badge variant="outline" className="text-xs gap-1" title={`${diagramCount} architecture diagram${diagramCount === 1 ? '' : 's'}`}>
+                                <Network className="h-3 w-3" />{diagramCount}
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">
@@ -601,17 +701,140 @@ export function ProjectManager() {
             {/* Two-column layout for Technical and Process/Results on lg+ */}
             <div className="grid gap-4 lg:grid-cols-2">
               {/* Technical Deep-Dive */}
-              <FieldSection title="Technical Deep-Dive" className="lg:col-span-1">
+              <FieldSection title="Technical Deep-Dive" defaultOpen className="lg:col-span-1">
                 <div className="grid gap-3 grid-cols-2">
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="proj-arch">Architecture Diagram URL</Label>
+                    <Label htmlFor="proj-arch">Architecture Diagram URL (legacy)</Label>
                     <Input id="proj-arch" placeholder="https://..." value={form.architectureDiagramUrl} onChange={(e) => setForm((f) => ({ ...f, architectureDiagramUrl: e.target.value }))} />
+                    <p className="text-[11px] text-muted-foreground">Single-diagram legacy field. Prefer the gallery below.</p>
                   </div>
                   <div className="flex flex-col gap-2">
                     <Label htmlFor="proj-dbschema">DB Schema URL</Label>
                     <Input id="proj-dbschema" placeholder="https://..." value={form.dbSchemaUrl} onChange={(e) => setForm((f) => ({ ...f, dbSchemaUrl: e.target.value }))} />
                   </div>
                 </div>
+
+                {/* Architecture Diagrams gallery editor */}
+                <div className="rounded-lg border border-dashed p-3 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Network className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-medium">Architecture Diagrams</span>
+                      {form.architectureDiagrams.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px]">{form.architectureDiagrams.length}</Badge>
+                      )}
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={addDiagram}>
+                      <Plus className="h-3.5 w-3.5 mr-1" />Add diagram
+                    </Button>
+                  </div>
+
+                  {form.architectureDiagrams.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      No diagrams yet. Click <span className="font-medium">Add diagram</span> to attach an HLD, LLD, DFD, sequence, ERD, or other diagram (image / SVG / embed URL).
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {form.architectureDiagrams.map((diagram, idx) => {
+                        const typeOption = DIAGRAM_TYPE_OPTIONS.find((o) => o.value === diagram.type)
+                        return (
+                          <div key={idx} className="rounded-md border bg-card p-3 space-y-2">
+                            <div className="flex items-start gap-2">
+                              <div className="flex flex-col gap-0.5 pt-1">
+                                <button
+                                  type="button"
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                  onClick={() => moveDiagram(idx, -1)}
+                                  disabled={idx === 0}
+                                  aria-label="Move up"
+                                >
+                                  <ChevronUp className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="text-muted-foreground hover:text-foreground disabled:opacity-30"
+                                  onClick={() => moveDiagram(idx, 1)}
+                                  disabled={idx === form.architectureDiagrams.length - 1}
+                                  aria-label="Move down"
+                                >
+                                  <ChevronDown className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                              <div className="grid gap-2 grid-cols-1 sm:grid-cols-[1fr_140px] flex-1">
+                                <div className="flex flex-col gap-1">
+                                  <Label htmlFor={`diag-title-${idx}`} className="text-[11px] text-muted-foreground">Title</Label>
+                                  <Input
+                                    id={`diag-title-${idx}`}
+                                    placeholder="e.g. High-Level Architecture"
+                                    value={diagram.title}
+                                    onChange={(e) => updateDiagram(idx, { title: e.target.value })}
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                  <Label htmlFor={`diag-type-${idx}`} className="text-[11px] text-muted-foreground">Type</Label>
+                                  <Select
+                                    value={diagram.type}
+                                    onValueChange={(v) => updateDiagram(idx, { type: v as ArchitectureDiagramType })}
+                                  >
+                                    <SelectTrigger id={`diag-type-${idx}`}>
+                                      <SelectValue placeholder="Select type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {DIAGRAM_TYPE_OPTIONS.map((opt) => (
+                                        <SelectItem key={opt.value} value={opt.value}>
+                                          <span className="font-medium">{opt.label}</span>
+                                          <span className="ml-2 text-xs text-muted-foreground">{opt.description}</span>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive shrink-0 mt-5"
+                                onClick={() => removeDiagram(idx)}
+                                aria-label={`Remove diagram ${idx + 1}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor={`diag-url-${idx}`} className="text-[11px] text-muted-foreground">URL (image / SVG / embed)</Label>
+                              <Input
+                                id={`diag-url-${idx}`}
+                                placeholder="https://... .png / .svg / mermaid / excalidraw"
+                                value={diagram.url}
+                                onChange={(e) => updateDiagram(idx, { url: e.target.value })}
+                                className="font-mono text-xs"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <Label htmlFor={`diag-desc-${idx}`} className="text-[11px] text-muted-foreground">Description (optional)</Label>
+                              <Textarea
+                                id={`diag-desc-${idx}`}
+                                placeholder="What does this diagram show?"
+                                value={diagram.description}
+                                onChange={(e) => updateDiagram(idx, { description: e.target.value })}
+                                rows={2}
+                                className="text-xs"
+                              />
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                              <Badge variant="outline" className="text-[10px] capitalize">{typeOption?.label ?? diagram.type}</Badge>
+                              {diagram.url && (
+                                <span className="truncate max-w-[200px]" title={diagram.url}>{diagram.url}</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="proj-adr">Architecture Decision Records</Label>
                   <Textarea id="proj-adr" placeholder="Key architecture decisions..." value={form.adrContent} onChange={(e) => setForm((f) => ({ ...f, adrContent: e.target.value }))} rows={3} className="font-mono text-sm" />
@@ -670,6 +893,26 @@ export function ProjectManager() {
                 </div>
               </FieldSection>
             </div>
+
+            {/* Team / Contributors */}
+            <FieldSection title="Team & Contributors" className="">
+              <div className="flex items-center gap-3 rounded-lg border p-3">
+                <Switch
+                  checked={form.showTeam}
+                  onCheckedChange={(checked) => setForm((f) => ({ ...f, showTeam: checked }))}
+                />
+                <div>
+                  <Label className="text-sm font-medium">Show Team Section</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Display contributors publicly on the project detail page.
+                  </p>
+                </div>
+              </div>
+              <ContributorsInput
+                value={form.contributors}
+                onChange={(val) => setForm((f) => ({ ...f, contributors: val }))}
+              />
+            </FieldSection>
 
             {/* Featured Toggle + Complexity */}
             <div className="grid gap-4 sm:grid-cols-2">

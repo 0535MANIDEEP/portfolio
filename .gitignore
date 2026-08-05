@@ -1,0 +1,53 @@
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# production
+/build
+/dist
+
+# environment — NEVER commit secrets
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+
+# logs
+*.log
+dev.log
+server.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local sqlite databases (project uses Supabase Postgres)
+*.db
+*.db-journal
+/db/
+/prisma/db/
+/prisma/dev.db
+
+# misc
+.DS_Store
+*.pem
+.vercel
+/coverage
+
+# editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# lockfiles — this project standardises on npm (see issue #7)
+bun.lock
+bun.lockb
+yarn.lock
+pnpm-lock.yaml

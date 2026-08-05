@@ -374,7 +374,7 @@ export default function SnippetsPage() {
       {/* FIXED LAYOUT BREAKING: 
         Added `pt-24` (or similar depending on navbar height) to the main element so it avoids overlapping under the fixed navbar.
       */}
-      <main className="flex-1 w-full mx-auto max-w-6xl px-4 pt-24 pb-8 sm:px-6 lg:px-8"> 
+      <main id="main-content" className="flex-1 w-full mx-auto max-w-6xl px-4 pt-24 pb-8 sm:px-6 lg:px-8"> 
         {/* Header */}
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">Code Snippets</h1>

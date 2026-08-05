@@ -5,7 +5,8 @@ import { motion } from 'framer-motion'
 import { Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Navbar, Footer } from '@/components/site/navbar'
+import { Navbar, Footer } from "@/components/site/navbar"
+import { PageTransition } from "@/components/site/page-transition"
 import { ProjectCard, LoadingCards } from '@/components/site/cards'
 
 interface Project {
@@ -21,7 +22,7 @@ export default function ProjectsPage() {
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
 
   useEffect(() => {
-    fetch('/api/projects').then(r => r.json()).then(data => { setProjects(data); setLoading(false) }).catch(() => setLoading(false))
+    fetch('/api/projects').then(r => r.json()).then(data => { setProjects(Array.isArray(data) ? data : []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   const allSkills = useMemo(() =>
@@ -50,7 +51,7 @@ export default function ProjectsPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 py-20 px-4">
+      <main id="main-content" className="flex-1 py-20 px-4">
         <div className="mx-auto max-w-6xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
             <h1 className="text-3xl font-bold sm:text-4xl">Projects</h1>

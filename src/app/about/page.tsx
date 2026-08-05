@@ -35,7 +35,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 py-20 px-4">
+      <main id="main-content" className="flex-1 py-20 px-4">
         <div className="mx-auto max-w-4xl">
           {/* Header */}
           <motion.div className="mb-12" initial="hidden" animate="visible" variants={fadeUp} custom={0}>

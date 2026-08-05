@@ -80,21 +80,28 @@ export function RelatedContent({ entityType, currentSlug, currentTags = [], limi
   }, [entityType])
 
   const relatedItems = useMemo(() => {
-    if (!items.length || !currentTags.length) return []
+    if (!items.length) return []
 
-    const scored = items
-      .filter((item: RelatedItem) => item.slug !== currentSlug)
+    const others = items.filter((item: RelatedItem) => item.slug !== currentSlug)
+    const currentLower = currentTags.map(t => t.trim().toLowerCase())
+
+    // Score by tag overlap
+    const scored = others
       .map((item: RelatedItem) => ({
         ...item,
-        score: getRelevanceScore(item, currentTags, entityType),
+        score: currentLower.length > 0 ? getRelevanceScore(item, currentTags, entityType) : 0,
+        matchedTags: parseTags(item, entityType).filter(t => currentLower.includes(t)),
       }))
-      .filter(item => item.score > 0)
       .sort((a, b) => {
         if (b.score !== a.score) return b.score - a.score
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       })
 
-    return scored.slice(0, limit)
+    // Prefer tag matches, but fall back to recent items if no matches
+    const tagMatches = scored.filter(item => item.score > 0)
+    const result = tagMatches.length > 0 ? tagMatches : scored
+
+    return result.slice(0, limit)
   }, [items, currentSlug, currentTags, entityType, limit])
 
   if (loading || relatedItems.length === 0) return null
@@ -112,6 +119,9 @@ export function RelatedContent({ entityType, currentSlug, currentTags = [], limi
       {/* Section header */}
       <div className="flex items-center gap-4 mb-6">
         <h2 className="text-xl font-semibold tracking-tight">You Might Also Like</h2>
+        {relatedItems[0]?.score > 0 && (
+          <Badge variant="secondary" className="text-[10px] font-normal">by tag match</Badge>
+        )}
         <div className="flex-1 h-px bg-border" />
       </div>
 
@@ -171,11 +181,18 @@ export function RelatedContent({ entityType, currentSlug, currentTags = [], limi
                     {/* Tags / stack badges */}
                     {tags.length > 0 && (
                       <div className="flex flex-wrap gap-1">
-                        {tags.slice(0, 3).map(tag => (
-                          <Badge key={tag} variant="secondary" className="text-[10px] font-normal">
-                            {tag}
-                          </Badge>
-                        ))}
+                        {tags.slice(0, 3).map(tag => {
+                          const isMatched = item.matchedTags?.includes(tag)
+                          return (
+                            <Badge
+                              key={tag}
+                              variant={isMatched ? 'default' : 'secondary'}
+                              className={`text-[10px] font-normal ${isMatched ? 'bg-primary/15 text-primary' : ''}`}
+                            >
+                              {tag}
+                            </Badge>
+                          )
+                        })}
                         {tags.length > 3 && (
                           <Badge variant="outline" className="text-[10px] font-normal">
                             +{tags.length - 3} more

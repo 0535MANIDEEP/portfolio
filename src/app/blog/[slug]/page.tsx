@@ -1,34 +1,127 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import ReactMarkdown from 'react-markdown'
 import { ThemedCodeBlock } from '@/components/site/themed-code-block'
-import { ArrowLeft, Calendar, Tag, Play, Music, MessageCircle, Share2, FileText } from 'lucide-react'
+import { ArrowLeft, Calendar, Tag, Play, Music, MessageCircle, Share2, FileText, ExternalLink, Link2, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import { Navbar, Footer } from '@/components/site/navbar'
 import { CommentSection } from '@/components/site/comment-section'
 import { useToast } from '@/hooks/use-toast'
 import { format } from 'date-fns'
 import { EmbedList } from "@/components/embed-renderer"
 import { ReadingProgress } from '@/components/site/reading-progress'
+import { Breadcrumbs } from '@/components/site/breadcrumbs'
 import { TableOfContents } from '@/components/site/table-of-contents'
 import { ShareButtons } from '@/components/site/share-buttons'
-import { RelatedContent } from '@/components/site/related-content'
+import { RelatedContent } from "@/components/site/related-content"
+import { estimateReadingTime } from "@/lib/reading-time"
+import { ViewCounter } from "@/components/site/view-counter"
 
 
 const typeIcons: Record<string, React.ElementType> = {
   youtube: Play, spotify: Music, tweet: MessageCircle, article: FileText,
 }
 
+interface ResourceLink {
+  label: string
+  url: string
+  description: string
+}
+
 interface Blog {
   id: string; title: string; slug: string; excerpt: string; content: string
   coverImage: string; tags: string; type: string; embedUrl: string; embeds: string
   behindTheScenes: string; published: boolean; createdAt: string
+  resourceLinks: string
 }
+
+function parseResourceLinks(raw: string): ResourceLink[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((x) => x && typeof x === 'object')
+        .map((x) => ({
+          label: typeof x.label === 'string' ? x.label : '',
+          url: typeof x.url === 'string' ? x.url : '',
+          description: typeof x.description === 'string' ? x.description : '',
+        }))
+        .filter((x) => x.url || x.label)
+    }
+  } catch {
+    /* ignore */
+  }
+  return []
+}
+
+function ResourcesSection({ links }: { links: ResourceLink[] }) {
+  if (links.length === 0) return null
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 10 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.4 }}
+      className="mt-8"
+      aria-labelledby="resources-heading"
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <Link2 className="h-4 w-4 text-primary" />
+        <h2 id="resources-heading" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Resources
+        </h2>
+        <Badge variant="secondary" className="text-[10px]">{links.length}</Badge>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {links.map((link, i) => {
+          const href = link.url || '#'
+          const label = link.label || link.url || 'Resource'
+          return (
+            <Card
+              key={`${i}-${href}`}
+              className="overflow-hidden transition-all hover:shadow-md hover:border-primary/40"
+            >
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                aria-label={`${label} (opens in new tab)`}
+              >
+                <CardContent className="p-4 flex flex-col gap-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-medium text-foreground leading-snug line-clamp-2">
+                      {label}
+                    </span>
+                    <ExternalLink className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
+                  </div>
+                  {link.description && (
+                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+                      {link.description}
+                    </p>
+                  )}
+                  {link.url && (
+                    <span className="text-[11px] font-mono text-muted-foreground/70 truncate">
+                      {link.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </span>
+                  )}
+                </CardContent>
+              </a>
+            </Card>
+          )
+        })}
+      </div>
+    </motion.section>
+  )
+}
+
 export default function BlogDetailPage() {
   const params = useParams()
   const { toast } = useToast()
@@ -39,7 +132,8 @@ export default function BlogDetailPage() {
   useEffect(() => {
     fetch(`/api/blogs?published=true`)
       .then(r => r.json())
-      .then(data => {
+      .then((raw: unknown) => {
+        const data = Array.isArray(raw) ? raw : []
         const found = data.find((b: Blog) => b.slug === params.slug)
         if (found) setBlog(found)
         setLoading(false)
@@ -52,11 +146,16 @@ export default function BlogDetailPage() {
     toast({ title: 'Link copied!' })
   }
 
+  const resourceLinks = useMemo(
+    () => (blog ? parseResourceLinks(blog.resourceLinks) : []),
+    [blog],
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
-        <main className="flex-1 py-20 px-4">
+        <main id="main-content" className="flex-1 py-20 px-4">
           <div className="mx-auto max-w-3xl space-y-4">
             <div className="h-8 w-2/3 rounded bg-muted animate-pulse" />
             <div className="h-4 w-1/3 rounded bg-muted animate-pulse" />
@@ -71,7 +170,7 @@ export default function BlogDetailPage() {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
-        <main className="flex-1 py-20 px-4 text-center">
+        <main id="main-content" className="flex-1 py-20 px-4 text-center">
           <p className="text-muted-foreground mb-4">Post not found</p>
           <Button asChild variant="outline"><Link href="/blog" className="gap-2"><ArrowLeft className="h-4 w-4" />Back to Blog</Link></Button>
         </main>
@@ -86,7 +185,7 @@ export default function BlogDetailPage() {
     <div className="min-h-screen flex flex-col">
       <ReadingProgress />
       <Navbar />
-      <main className="flex-1 py-20 px-4">
+      <main id="main-content" className="flex-1 py-20 px-4">
         <div className="mx-auto max-w-5xl lg:grid lg:grid-cols-[1fr_200px] lg:gap-8">
         <motion.article
           ref={contentRef}
@@ -95,10 +194,11 @@ export default function BlogDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Back */}
-          <Button variant="ghost" size="sm" className="mb-6 -ml-2 gap-1.5 text-muted-foreground hover:text-foreground" asChild>
+          {/* Back + Breadcrumbs */}
+          <Button variant="ghost" size="sm" className="mb-3 -ml-2 gap-1.5 text-muted-foreground hover:text-foreground" asChild>
             <Link href="/blog"><ArrowLeft className="h-4 w-4" />Back to Blog</Link>
           </Button>
+          <Breadcrumbs items={[{ label: 'Blog', href: '/blog' }, { label: blog.title }]} />
 
           {/* Header */}
           <motion.header
@@ -114,8 +214,12 @@ export default function BlogDetailPage() {
               </Badge>
               <span className="text-sm text-muted-foreground flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5" />
-                {format(new Date(blog.createdAt), 'MMMM d, yyyy')}
+                {format(new Date(blog.createdAt), "MMMM d, yyyy")}</span>
+              <span className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5" />
+                {estimateReadingTime(blog.content)} min read
               </span>
+              <ViewCounter id={`blog:${blog.slug}`} />
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight">{blog.title}</h1>
             {blog.excerpt && (
@@ -230,7 +334,10 @@ export default function BlogDetailPage() {
           )}
                     {/* Embeds */}
           {blog.embeds && <EmbedList urls={blog.embeds} />}
-          
+
+          {/* Feature #16 Part A: Resource Links */}
+          <ResourcesSection links={resourceLinks} />
+
           {/* Related Content */}
           <RelatedContent
             entityType="blog"

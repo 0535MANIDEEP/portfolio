@@ -9,13 +9,24 @@ import {
   ChevronDown,
   BookOpen,
   Layers,
+  Link as LinkIcon,
+  FileText,
+  Code2,
+  Type,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { EmbedUrlInput } from "@/components/embed-renderer" 
+import { EmbedUrlInput } from "@/components/embed-renderer"
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -56,6 +67,10 @@ interface Chapter {
   createdAt: string
   children?: Chapter[]
   embeds: string
+  // Feature #17: linked content
+  linkedBlogSlug: string
+  linkedSnippetSlug: string
+  titleOverride: string
 }
 
 interface Course {
@@ -76,6 +91,8 @@ interface CourseForm {
   banner: string
 }
 
+type ContentMode = 'custom' | 'blog' | 'snippet'
+
 interface ChapterForm {
   title: string
   slug: string
@@ -84,7 +101,29 @@ interface ChapterForm {
   chapterType: string
   order: number
   parentId: string | null
-  embeds: string // Add this line
+  embeds: string
+  // Feature #17: linked content
+  linkedBlogSlug: string
+  linkedSnippetSlug: string
+  titleOverride: string
+}
+
+interface BlogListItem {
+  id: string
+  title: string
+  slug: string
+  excerpt: string
+  category: string
+  type: string
+}
+
+interface SnippetListItem {
+  id: string
+  title: string
+  slug: string
+  description: string
+  language: string
+  type: string
 }
 
 const emptyCourseForm: CourseForm = {
@@ -102,7 +141,10 @@ const emptyChapterForm: ChapterForm = {
   chapterType: 'content',
   order: 0,
   parentId: null,
-  embeds: '', // Add this line
+  embeds: '',
+  linkedBlogSlug: '',
+  linkedSnippetSlug: '',
+  titleOverride: '',
 }
 
 const courseSortOptions: SortOption[] = [
@@ -134,6 +176,7 @@ function ChapterTreeItem({
 }) {
   const [expanded, setExpanded] = useState(true)
   const hasChildren = chapter.children && chapter.children.length > 0
+  const isLinked = !!(chapter.linkedBlogSlug || chapter.linkedSnippetSlug)
 
   return (
     <div>
@@ -145,6 +188,7 @@ function ChapterTreeItem({
           <button
             onClick={() => setExpanded(!expanded)}
             className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? (
               <ChevronDown className="h-3.5 w-3.5" />
@@ -156,6 +200,20 @@ function ChapterTreeItem({
           <span className="w-3.5 shrink-0" />
         )}
         <span className="flex-1 truncate text-sm">{chapter.title}</span>
+        {isLinked && (
+          <Badge
+            variant="outline"
+            className="text-[10px] px-1.5 py-0 shrink-0 gap-0.5"
+            title={
+              chapter.linkedBlogSlug
+                ? `Linked blog: ${chapter.linkedBlogSlug}`
+                : `Linked snippet: ${chapter.linkedSnippetSlug}`
+            }
+          >
+            <LinkIcon className="h-2.5 w-2.5" />
+            {chapter.linkedBlogSlug ? 'Blog' : 'Snippet'}
+          </Badge>
+        )}
         {chapter.sectionName && (
           <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">
             {chapter.sectionName}
@@ -170,6 +228,7 @@ function ChapterTreeItem({
             size="icon"
             className="h-6 w-6"
             onClick={() => onAddChild(chapter)}
+            aria-label="Add child chapter"
           >
             <Plus className="h-3 w-3" />
           </Button>
@@ -178,6 +237,7 @@ function ChapterTreeItem({
             size="icon"
             className="h-6 w-6"
             onClick={() => onEdit(chapter)}
+            aria-label="Edit chapter"
           >
             <Pencil className="h-3 w-3" />
           </Button>
@@ -186,6 +246,7 @@ function ChapterTreeItem({
             size="icon"
             className="h-6 w-6 text-destructive hover:text-destructive"
             onClick={() => onDelete(chapter)}
+            aria-label="Delete chapter"
           >
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -230,6 +291,12 @@ export function CourseManager() {
   const [savingChapter, setSavingChapter] = useState(false)
   const [chapterTab, setChapterTab] = useState<'edit' | 'preview'>('edit')
 
+  // Feature #17: linked-content catalogs (loaded lazily when chapter dialog opens)
+  const [blogs, setBlogs] = useState<BlogListItem[]>([])
+  const [blogsLoaded, setBlogsLoaded] = useState(false)
+  const [snippets, setSnippets] = useState<SnippetListItem[]>([])
+  const [snippetsLoaded, setSnippetsLoaded] = useState(false)
+
   // Delete dialogs
   const [deleteCourseTarget, setDeleteCourseTarget] = useState<Course | null>(null)
   const [deleteChapterTarget, setDeleteChapterTarget] = useState<Chapter | null>(null)
@@ -267,6 +334,36 @@ export function CourseManager() {
     [toast]
   )
 
+  // Feature #17: lazily fetch the published blogs catalog (cached for the session)
+  const ensureBlogsLoaded = useCallback(async () => {
+    if (blogsLoaded) return
+    try {
+      const res = await fetch('/api/blogs?published=true')
+      if (res.ok) {
+        const data = await res.json()
+        setBlogs(Array.isArray(data) ? data : [])
+        setBlogsLoaded(true)
+      }
+    } catch {
+      /* non-fatal — dropdown will just be empty */
+    }
+  }, [blogsLoaded])
+
+  // Feature #17: lazily fetch the published snippets catalog (cached for the session)
+  const ensureSnippetsLoaded = useCallback(async () => {
+    if (snippetsLoaded) return
+    try {
+      const res = await fetch('/api/snippets?published=true')
+      if (res.ok) {
+        const data = await res.json()
+        setSnippets(Array.isArray(data) ? data : [])
+        setSnippetsLoaded(true)
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }, [snippetsLoaded])
+
   const sortedCourses = useMemo(() => {
     const [field, dir] = sortBy.split(':')
     return [...courses].sort((a, b) => {
@@ -297,6 +394,22 @@ useEffect(() => {
   })()
   return () => { cancelled = true }
 }, [toast])
+
+  // Derive the content-source mode from the linked fields
+  const contentMode: ContentMode = useMemo(() => {
+    if (chapterForm.linkedBlogSlug) return 'blog'
+    if (chapterForm.linkedSnippetSlug) return 'snippet'
+    return 'custom'
+  }, [chapterForm.linkedBlogSlug, chapterForm.linkedSnippetSlug])
+
+  const selectedBlog = useMemo(
+    () => blogs.find((b) => b.slug === chapterForm.linkedBlogSlug) || null,
+    [blogs, chapterForm.linkedBlogSlug]
+  )
+  const selectedSnippet = useMemo(
+    () => snippets.find((s) => s.slug === chapterForm.linkedSnippetSlug) || null,
+    [snippets, chapterForm.linkedSnippetSlug]
+  )
 
   const selectCourse = (course: Course) => {
     setSelectedCourse(course)
@@ -396,6 +509,9 @@ useEffect(() => {
     })
     setChapterTab('edit')
     setChapterDialogOpen(true)
+    // Pre-fetch the link catalogs (cached) so dropdowns are populated quickly
+    void ensureBlogsLoaded()
+    void ensureSnippetsLoaded()
   }
 
   const openEditChapter = (chapter: Chapter) => {
@@ -408,10 +524,24 @@ useEffect(() => {
       chapterType: chapter.chapterType || 'content',
       order: chapter.order,
       parentId: chapter.parentId,
-      embeds: chapter.embeds || '',  // added this
+      embeds: chapter.embeds || '',
+      linkedBlogSlug: chapter.linkedBlogSlug || '',
+      linkedSnippetSlug: chapter.linkedSnippetSlug || '',
+      titleOverride: chapter.titleOverride || '',
     })
     setChapterTab('edit')
     setChapterDialogOpen(true)
+    void ensureBlogsLoaded()
+    void ensureSnippetsLoaded()
+  }
+
+  // Feature #17: switch the content-source mode, clearing the opposite linked field
+  const setContentMode = (mode: ContentMode) => {
+    setChapterForm((f) => ({
+      ...f,
+      linkedBlogSlug: mode === 'blog' ? f.linkedBlogSlug : '',
+      linkedSnippetSlug: mode === 'snippet' ? f.linkedSnippetSlug : '',
+    }))
   }
 
   const handleSaveChapter = async () => {
@@ -428,7 +558,19 @@ useEffect(() => {
         : `/api/courses/${selectedCourse.id}/chapters`
       const method = editingChapter ? 'PUT' : 'POST'
 
-      const body: Record<string, unknown> = { ...chapterForm }
+      const body: Record<string, unknown> = {
+        title: chapterForm.title,
+        slug: chapterForm.slug,
+        content: chapterForm.content,
+        sectionName: chapterForm.sectionName,
+        chapterType: chapterForm.chapterType,
+        order: chapterForm.order,
+        parentId: chapterForm.parentId,
+        embeds: chapterForm.embeds,
+        linkedBlogSlug: chapterForm.linkedBlogSlug,
+        linkedSnippetSlug: chapterForm.linkedSnippetSlug,
+        titleOverride: chapterForm.titleOverride,
+      }
 
       const res = await fetch(url, {
         method,
@@ -537,6 +679,7 @@ useEffect(() => {
                             e.stopPropagation()
                             openEditCourse(course)
                           }}
+                          aria-label="Edit course"
                         >
                           <Pencil className="h-3 w-3" />
                         </Button>
@@ -548,6 +691,7 @@ useEffect(() => {
                             e.stopPropagation()
                             setDeleteCourseTarget(course)
                           }}
+                          aria-label="Delete course"
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -622,7 +766,7 @@ useEffect(() => {
 
       {/* Course Dialog */}
       <Dialog open={courseDialogOpen} onOpenChange={setCourseDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingCourse ? 'Edit Course' : 'Create Course'}</DialogTitle>
             <DialogDescription>
@@ -683,7 +827,7 @@ useEffect(() => {
 
       {/* Chapter Dialog */}
       <Dialog open={chapterDialogOpen} onOpenChange={setChapterDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl lg:max-w-3xl w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingChapter ? 'Edit Chapter' : 'Add Chapter'}</DialogTitle>
             <DialogDescription>
@@ -796,34 +940,246 @@ useEffect(() => {
               {/* ADD THIS BLOCK HERE */}
               <div className="flex flex-col gap-2">
                 <Label>Embeds</Label>
-                <EmbedUrlInput 
-                  value={chapterForm.embeds} 
-                  onChange={(v) => setChapterForm((f) => ({ ...f, embeds: v }))} 
+                <EmbedUrlInput
+                  value={chapterForm.embeds}
+                  onChange={(v) => setChapterForm((f) => ({ ...f, embeds: v }))}
                 />
               </div>
               {/* END OF ADDITION */}
 
-              
+              {/* Feature #17: Content source mode (Custom | Link Blog | Link Snippet) */}
               <div className="flex flex-col gap-2">
-                <Label htmlFor="ch-content">Content (Markdown)</Label>
+                <Label>Content Source</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'custom', label: 'Custom content', icon: Type },
+                    { value: 'blog', label: 'Link Blog', icon: FileText },
+                    { value: 'snippet', label: 'Link Snippet', icon: Code2 },
+                  ] as const).map(opt => {
+                    const Icon = opt.icon
+                    const active = contentMode === opt.value
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setContentMode(opt.value)}
+                        className={`flex items-center justify-center gap-1.5 rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
+                          active
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'text-muted-foreground hover:border-primary/50 hover:text-foreground'
+                        }`}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {opt.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {contentMode === 'custom'
+                    ? 'Write the chapter content directly in the textarea below.'
+                    : contentMode === 'blog'
+                    ? 'Render this chapter using the content of a published blog post. The blog\u2019s content will be shown on the course detail page.'
+                    : 'Render this chapter using the content of a published code snippet. The snippet\u2019s code will be shown on the course detail page.'}
+                </p>
+              </div>
+
+              {/* Link Blog dropdown */}
+              {contentMode === 'blog' && (
+                <div className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <Label htmlFor="ch-linked-blog">Linked Blog</Label>
+                  <Select
+                    value={chapterForm.linkedBlogSlug}
+                    onValueChange={(v) =>
+                      setChapterForm((f) => ({
+                        ...f,
+                        linkedBlogSlug: v,
+                        linkedSnippetSlug: '',
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="ch-linked-blog">
+                      <SelectValue placeholder={blogsLoaded ? 'Select a published blog…' : 'Loading blogs…'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {blogs.length === 0 ? (
+                        <SelectItem value="__none__" disabled>
+                          No published blogs found
+                        </SelectItem>
+                      ) : (
+                        blogs.map((b) => (
+                          <SelectItem key={b.id} value={b.slug}>
+                            {b.title}
+                            {b.category ? ` · ${b.category}` : ''}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {selectedBlog && (
+                    <div className="mt-1 rounded-md border bg-background p-3 text-xs">
+                      <div className="flex items-center gap-1.5 font-medium text-foreground">
+                        <FileText className="h-3.5 w-3.5 text-primary" />
+                        {selectedBlog.title}
+                      </div>
+                      {selectedBlog.excerpt && (
+                        <p className="mt-1 text-muted-foreground line-clamp-3">
+                          {selectedBlog.excerpt}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Slug: {selectedBlog.slug}
+                        {selectedBlog.type ? ` · Type: ${selectedBlog.type}` : ''}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Link Snippet dropdown */}
+              {contentMode === 'snippet' && (
+                <div className="flex flex-col gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                  <Label htmlFor="ch-linked-snippet">Linked Snippet</Label>
+                  <Select
+                    value={chapterForm.linkedSnippetSlug}
+                    onValueChange={(v) =>
+                      setChapterForm((f) => ({
+                        ...f,
+                        linkedSnippetSlug: v,
+                        linkedBlogSlug: '',
+                      }))
+                    }
+                  >
+                    <SelectTrigger id="ch-linked-snippet">
+                      <SelectValue placeholder={snippetsLoaded ? 'Select a published snippet…' : 'Loading snippets…'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {snippets.length === 0 ? (
+                        <SelectItem value="__none__" disabled>
+                          No published snippets found
+                        </SelectItem>
+                      ) : (
+                        snippets.map((s) => (
+                          <SelectItem key={s.id} value={s.slug}>
+                            {s.title}
+                            {s.language ? ` · ${s.language}` : ''}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {selectedSnippet && (
+                    <div className="mt-1 rounded-md border bg-background p-3 text-xs">
+                      <div className="flex items-center gap-1.5 font-medium text-foreground">
+                        <Code2 className="h-3.5 w-3.5 text-primary" />
+                        {selectedSnippet.title}
+                      </div>
+                      {selectedSnippet.description && (
+                        <p className="mt-1 text-muted-foreground line-clamp-3">
+                          {selectedSnippet.description}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        Slug: {selectedSnippet.slug}
+                        {selectedSnippet.language ? ` · Language: ${selectedSnippet.language}` : ''}
+                        {selectedSnippet.type ? ` · Type: ${selectedSnippet.type}` : ''}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Title override (always available, most useful when linked) */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="ch-title-override">
+                  Title Override{' '}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    (optional)
+                  </span>
+                </Label>
+                <Input
+                  id="ch-title-override"
+                  placeholder={
+                    contentMode === 'blog'
+                      ? 'Defaults to the linked blog\u2019s title'
+                      : contentMode === 'snippet'
+                      ? 'Defaults to the linked snippet\u2019s title'
+                      : 'Override the chapter title shown to readers'
+                  }
+                  value={chapterForm.titleOverride}
+                  onChange={(e) =>
+                    setChapterForm((f) => ({ ...f, titleOverride: e.target.value }))
+                  }
+                />
+                {(contentMode === 'blog' || contentMode === 'snippet') && (
+                  <p className="text-xs text-muted-foreground">
+                    When set, this overrides the linked content&apos;s original title in the
+                    course view. Leave empty to use the linked item&apos;s title.
+                  </p>
+                )}
+              </div>
+
+              {/* Manual content textarea — disabled when linked */}
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="ch-content">
+                  Content (Markdown)
+                  {contentMode !== 'custom' && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      (disabled — content comes from the linked {contentMode})
+                    </span>
+                  )}
+                </Label>
                 <Textarea
                   id="ch-content"
-                  placeholder="Chapter content in markdown..."
+                  placeholder={
+                    contentMode === 'custom'
+                      ? 'Chapter content in markdown...'
+                      : 'Clear the link above to write custom content.'
+                  }
                   value={chapterForm.content}
                   onChange={(e) =>
                     setChapterForm((f) => ({ ...f, content: e.target.value }))
                   }
                   rows={14}
                   className="font-mono text-sm"
+                  disabled={contentMode !== 'custom'}
                 />
               </div>
             </div>
           ) : (
             <div className="min-h-[200px] rounded-lg border p-6 prose prose-sm dark:prose-invert max-w-none">
               {chapterForm.title && (
-                <h2 className="text-xl font-bold mb-2">{chapterForm.title}</h2>
+                <h2 className="text-xl font-bold mb-2">
+                  {chapterForm.titleOverride || chapterForm.title}
+                </h2>
               )}
-              {chapterForm.content ? (
+              {contentMode === 'blog' && selectedBlog ? (
+                <div className="not-prose mb-3">
+                  <Badge variant="secondary" className="gap-1">
+                    <FileText className="h-3 w-3" /> Linked from Blog: {selectedBlog.title}
+                  </Badge>
+                </div>
+              ) : null}
+              {contentMode === 'snippet' && selectedSnippet ? (
+                <div className="not-prose mb-3">
+                  <Badge variant="secondary" className="gap-1">
+                    <Code2 className="h-3 w-3" /> Linked from Snippet: {selectedSnippet.title}
+                  </Badge>
+                </div>
+              ) : null}
+              {contentMode === 'blog' && selectedBlog ? (
+                selectedBlog.excerpt ? (
+                  <p className="text-muted-foreground">{selectedBlog.excerpt}</p>
+                ) : (
+                  <p className="text-muted-foreground">
+                    Blog content will be rendered on the course detail page.
+                  </p>
+                )
+              ) : contentMode === 'snippet' && selectedSnippet ? (
+                <p className="text-muted-foreground">
+                  Snippet code will be rendered on the course detail page.
+                </p>
+              ) : chapterForm.content ? (
                 <ReactMarkdown>{chapterForm.content}</ReactMarkdown>
               ) : (
                 <p className="text-muted-foreground">No content to preview.</p>
@@ -844,7 +1200,7 @@ useEffect(() => {
 
       {/* Chapter Preview (from tree) */}
       <Dialog open={!!previewChapter} onOpenChange={() => setPreviewChapter(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl lg:max-w-3xl w-[95%] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{previewChapter?.title}</DialogTitle>
             {previewChapter?.sectionName && (

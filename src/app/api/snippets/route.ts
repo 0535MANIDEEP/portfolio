@@ -6,6 +6,7 @@ import { logOperation } from '@/lib/log-operation'
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
+    const slug = searchParams.get('slug')
     const published = searchParams.get('published')
     const type = searchParams.get('type')
     const language = searchParams.get('language')
@@ -22,6 +23,15 @@ export async function GET(request: NextRequest) {
       },
       data: { published: true },
     })
+
+    // Feature #17: single-snippet lookup by slug (used by course chapter linking)
+    if (slug) {
+      const snippet = await db.codeSnippet.findUnique({ where: { slug } })
+      if (!snippet) {
+        return NextResponse.json({ error: 'Snippet not found' }, { status: 404 })
+      }
+      return NextResponse.json(snippet)
+    }
 
     const where: Record<string, unknown> = {}
 

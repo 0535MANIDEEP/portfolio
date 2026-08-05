@@ -11,6 +11,7 @@ import { BlogCard, ProjectCard, CourseCard, LoadingCards } from '@/components/si
 import { SkillsMatrix } from '@/components/site/skills-matrix'
 import { HeroCarousel } from '@/components/site/hero-carousel'
 import { TypingAnimation } from '@/components/site/typing-animation'
+import { AnimatedCounter } from '@/components/site/animated-counter'
 
 interface Project { id: string; title: string; slug: string; shortDesc: string; banner: string; website: string; downloadLink: string; repository: string; stack: string; videoUrl: string; featured: boolean; createdAt: string }
 interface Blog { id: string; title: string; slug: string; excerpt: string; coverImage: string; tags: string; type: string; embedUrl: string; published: boolean; createdAt: string; writtenBy: string; acceptedBy: string }
@@ -85,7 +86,7 @@ export default function Home() {
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <Navbar />
 
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         {/* HERO */}
         <section className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5" />
@@ -154,6 +155,36 @@ export default function Home() {
               </a>
             </motion.div>
           </motion.div>
+        </section>
+
+        {/* STATS BAND */}
+        <section className="border-y border-border bg-card/30">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            <motion.div initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}>
+              <div className="text-3xl font-bold text-primary">
+                <AnimatedCounter value={3} suffix="+" />
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Years Experience</div>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.1 }}>
+              <div className="text-3xl font-bold text-primary">
+                <AnimatedCounter value={30} suffix="+" />
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">REST APIs Built</div>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.2 }}>
+              <div className="text-3xl font-bold text-primary">
+                <AnimatedCounter value={98} suffix="%" />
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">System Uptime</div>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.3 }}>
+              <div className="text-3xl font-bold text-primary">
+                <AnimatedCounter value={30} suffix="%" />
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground uppercase tracking-wider">Latency Reduced</div>
+            </motion.div>
+          </div>
         </section>
 
         {/* SKILLS & TECHNOLOGIES — before Featured Work */}

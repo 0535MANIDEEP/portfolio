@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateSlug } from '@/lib/slug'
+import { logOperation } from '@/lib/log-operation'
 
 export async function GET(
   _request: NextRequest,
@@ -53,6 +54,11 @@ export async function POST(
 
     const slug = body.slug || generateSlug(body.title)
 
+    // Feature #17: persist linked blog/snippet slugs + optional title override
+    const linkedBlogSlug = typeof body.linkedBlogSlug === 'string' ? body.linkedBlogSlug : ''
+    const linkedSnippetSlug = typeof body.linkedSnippetSlug === 'string' ? body.linkedSnippetSlug : ''
+    const titleOverride = typeof body.titleOverride === 'string' ? body.titleOverride : ''
+
     const chapter = await db.courseChapter.create({
       data: {
         title: body.title,
@@ -63,12 +69,30 @@ export async function POST(
         chapterType: body.chapterType ?? 'content',
         courseId,
         parentId: body.parentId ?? null,
+        linkedBlogSlug,
+        linkedSnippetSlug,
+        titleOverride,
       },
+    })
+
+    await logOperation({
+      action: 'chapter.create',
+      entityType: 'course_chapter',
+      entityId: chapter.id,
+      details: `Created chapter "${chapter.title}" in course "${course.title}"${
+        linkedBlogSlug ? ` (linked blog: ${linkedBlogSlug})` : ''
+      }${linkedSnippetSlug ? ` (linked snippet: ${linkedSnippetSlug})` : ''}`,
+      actor: body.actor || 'admin',
     })
 
     return NextResponse.json(chapter, { status: 201 })
   } catch (error) {
     console.error('Create chapter error:', error)
+    await logOperation({
+      action: 'error:chapter.create',
+      entityType: 'course_chapter',
+      details: `Create chapter failed: ${error instanceof Error ? error.message : 'unknown'}`,
+    })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

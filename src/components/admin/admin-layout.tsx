@@ -21,6 +21,7 @@ import {
   Bot,
   Code2,
   ScrollText,
+  Lightbulb,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -45,8 +46,9 @@ import { UserManager } from './user-manager'
 import { RagSettings } from './rag-settings'
 import { SnippetManager } from './snippet-manager'
 import OperationLogsViewer from "./operation-logs-viewer";
+import { BlogIdeasManager } from './blog-ideas-manager'
 
-type Section = 'dashboard' | 'blogs' | 'projects' | 'courses' | 'snippets' | 'messages' | 'comments' | 'todos' | 'backup' | 'rag-bot' | 'users' | 'settings' | 'logs';
+type Section = 'dashboard' | 'blogs' | 'blog-ideas' | 'projects' | 'courses' | 'snippets' | 'messages' | 'comments' | 'todos' | 'backup' | 'rag-bot' | 'users' | 'settings' | 'logs';
 
 interface NavItem {
   id: Section
@@ -57,6 +59,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'blogs', label: 'Blogs', icon: FileText },
+  { id: 'blog-ideas', label: 'Blog Ideas', icon: Lightbulb },
   { id: 'projects', label: 'Projects', icon: FolderKanban },
   { id: 'courses', label: 'Courses', icon: GraduationCap },
   { id: 'snippets', label: 'Snippets', icon: Code2 },
@@ -70,8 +73,8 @@ const navItems: NavItem[] = [
 ]
 
 const rolePermissions: Record<string, string[]> = {
-  admin: ['dashboard', 'blogs', 'projects', 'courses', 'snippets', 'logs', 'messages', 'todos', 'rag-bot', 'backup', 'settings', 'users'],
-  blog_editor: ['dashboard', 'blogs', 'todos'],
+  admin: ['dashboard', 'blogs', 'blog-ideas', 'projects', 'courses', 'snippets', 'logs', 'messages', 'todos', 'rag-bot', 'backup', 'settings', 'users'],
+  blog_editor: ['dashboard', 'blogs', 'blog-ideas', 'todos'],
   project_editor: ['dashboard', 'projects', 'todos'],
   course_editor: ['dashboard', 'courses', 'todos'],
   viewer: ['dashboard'],
@@ -230,6 +233,8 @@ export function AdminLayout({ onLogout, role = 'admin' }: { onLogout: () => void
         return <AdminDashboard onNavigate={(section: string) => handleNavigate(section as Section)} />
       case 'blogs':
         return <BlogManager />
+      case 'blog-ideas':
+        return <BlogIdeasManager />
       case 'projects':
         return <ProjectManager />
       case 'courses':

@@ -26,7 +26,7 @@ CREATE TABLE "Profile" (
     "bio" TEXT NOT NULL DEFAULT '',
     "tagline" TEXT NOT NULL DEFAULT '',
     "resumeUrl" TEXT NOT NULL DEFAULT '/Gokul_Saraswat.pdf',
-    "twitter" TEXT NOT NULL DEFAULT 'https://twitter.com/gokulsaraswat',
+    "twitter" TEXT NOT NULL DEFAULT 'https://x.com/gokulsaraswat',
     "linkedin" TEXT NOT NULL DEFAULT 'https://www.linkedin.com/in/gokulsaraswat',
     "github" TEXT NOT NULL DEFAULT 'https://github.com/gokulsaraswat',
     "youtube" TEXT NOT NULL DEFAULT '',

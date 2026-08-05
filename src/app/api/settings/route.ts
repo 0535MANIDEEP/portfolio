@@ -28,6 +28,7 @@ const SITE_SETTINGS_KEYS = new Set([
   'enableProjects', 'enableCourses', 'enableSnippets', 'contactEmail',
   'showVisitorCount', 'showGithubStats', 'enableCustomCursor',
   'cursorMagneticSnap', 'enableAutoEmbeds', 'footerText', 'copyrightName',
+  'musicUrl', 'enableMusic',
 ])
 
 function parseSiteSettings(raw: string): Record<string, unknown> {

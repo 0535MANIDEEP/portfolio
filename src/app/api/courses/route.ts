@@ -2,8 +2,26 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateSlug } from '@/lib/slug'
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url)
+    const slug = searchParams.get('slug')
+
+    // Single course by slug (includes chapters for the detail page)
+    if (slug) {
+      const course = await db.course.findUnique({
+        where: { slug },
+        include: {
+          chapters: { orderBy: { order: 'asc' } },
+          _count: { select: { chapters: true } },
+        },
+      })
+      if (!course) {
+        return NextResponse.json({ error: 'Course not found' }, { status: 404 })
+      }
+      return NextResponse.json(course)
+    }
+
     const courses = await db.course.findMany({
       orderBy: { createdAt: 'desc' },
       include: {

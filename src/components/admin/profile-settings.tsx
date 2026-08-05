@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import {
   Save, RotateCcw, Loader2, Eye, User, Palette, Layout,
   Type, Zap, Monitor, Moon, Sun, Globe, Code2, MessageSquare,
-  Plus, Trash2, AlertCircle, CheckCircle2, MousePointer2, Video,
+  Plus, Trash2, AlertCircle, CheckCircle2, MousePointer2, Video, Music,
   Users, GraduationCap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,7 @@ interface SiteSettings {
   enableComments: boolean; enableRag: boolean; enableContact: boolean; enableBlog: boolean;
   enableProjects: boolean; enableCourses: boolean; enableSnippets: boolean; contactEmail: string;
   showVisitorCount: boolean; showGithubStats: boolean; enableCustomCursor: boolean;
-  cursorMagneticSnap: boolean; enableAutoEmbeds: boolean; footerText: string;
+  cursorMagneticSnap: boolean; enableAutoEmbeds: boolean; footerText: string; musicUrl: string; enableMusic: boolean;
   copyrightName: string; [key: string]: string | boolean | number | undefined;
 }
 
@@ -39,7 +39,7 @@ const DEFAULT_SETTINGS: SiteSettings = {
   enableRag: false, enableContact: true, enableBlog: true, enableProjects: true,
   enableCourses: true, enableSnippets: true, contactEmail: "", showVisitorCount: true,
   showGithubStats: true, enableCustomCursor: false, cursorMagneticSnap: true,
-  enableAutoEmbeds: true, footerText: "", copyrightName: "Gokul Saraswat",
+  enableAutoEmbeds: true, footerText: "", copyrightName: "Gokul Saraswat", musicUrl: "", enableMusic: false,
 };
 
 const TABS = [
@@ -293,6 +293,27 @@ export function ProfileSettings() {
                     <span key={t.l} className={`px-2 py-0.5 rounded text-[10px] font-medium ${t.c}`}>{t.l}</span>
                   ))}
                 </div>
+              </div>
+            </div>
+
+            {/* Background Music */}
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400"><Music className="w-5 h-5" /></div>
+                  <div><div className="text-sm font-semibold text-gray-900 dark:text-white">Background Music</div><p className="text-[11px] text-gray-500 dark:text-gray-400">Plays on first interaction (browser autoplay policy)</p></div>
+                </div>
+                <Switch checked={!!settings.enableMusic} onCheckedChange={(v) => us("enableMusic", v)} />
+              </div>
+              <div className="ml-[52px]">
+                <Label>Music URL (mp3, wav, or audio file URL)</Label>
+                <Input
+                  value={settings.musicUrl || ""}
+                  onChange={(e) => us("musicUrl", e.target.value)}
+                  placeholder="https://example.com/background-music.mp3"
+                  className="mt-1"
+                />
+                <p className="text-[10px] text-gray-400 mt-1">Paste a direct link to an audio file. The music will loop and start playing after the visitor&apos;s first interaction.</p>
               </div>
             </div>
           </div>

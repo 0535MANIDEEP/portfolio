@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useMounted } from "@/hooks/use-mounted";
+import { useAppSettings } from "@/hooks/use-app-settings";
 
-// ─── Magnetic Cursor with Dot + Delayed Circle ────────────────
-// Inner dot: 6px, follows mouse directly
-// Outer circle: 40px, follows with 150ms delay via lerp
-// Magnetic snap: outer circle pulls toward interactive elements
-// Edge snap: outer circle hugs card/block borders
+// ─── Magnetic Cursor with Dot + Circle ────────────────────
+// Inner dot: 6px, follows mouse instantly
+// Outer circle: 36px, follows with lerp (smooth delay)
+// Magnetic snap: circle is pulled toward the center of interactive elements
+// Hover state: circle inverts (mix-blend-difference) and grows on hover
 
 interface CursorState {
   x: number;
@@ -17,23 +18,22 @@ interface CursorState {
   isHovering: boolean;
   circleSize: number;
   isHidden: boolean;
+  hoverCenterX: number;
+  hoverCenterY: number;
 }
 
 const DOT_SIZE = 6;
-const DEFAULT_CIRCLE_SIZE = 40;
-const HOVER_CIRCLE_SIZE = 60;
-const MAGNETIC_STRENGTH = 0.35;
-const LERP_SPEED = 0.12;
-const SNAP_THRESHOLD = 8;
-const SNAP_STRENGTH = 0.6;
+const DEFAULT_CIRCLE_SIZE = 36;
+const HOVER_CIRCLE_SIZE = 56;
+const MAGNETIC_STRENGTH = 0.3;
+const LERP_SPEED = 0.18;
 
 function lerp(start: number, end: number, factor: number): number {
   return start + (end - start) * factor;
 }
 
-function getDistance(x1: number, y1: number, x2: number, y2: number): number {
-  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-}
+const INTERACTIVE_SELECTOR =
+  'a, button, [role="button"], input, textarea, select, [tabindex]:not([tabindex="-1"]), [data-cursor-hover], .cursor-hover';
 
 export function CustomCursor() {
   const dotRef = useRef<HTMLDivElement>(null);
@@ -46,15 +46,18 @@ export function CustomCursor() {
     isHovering: false,
     circleSize: DEFAULT_CIRCLE_SIZE,
     isHidden: true,
+    hoverCenterX: -100,
+    hoverCenterY: -100,
   });
-  
   const rafRef = useRef<number>(0);
   const mounted = useMounted();
+  const { enableCustomCursor, loading } = useAppSettings();
 
   useEffect(() => {
-
-    // Don't show custom cursor on touch devices
+    // Don't show on touch devices or if disabled in settings
     if (typeof window !== "undefined" && "ontouchstart" in window) return;
+    if (loading) return;
+    if (!enableCustomCursor) return;
 
     const dot = dotRef.current;
     const circle = circleRef.current;
@@ -74,10 +77,14 @@ export function CustomCursor() {
     };
 
     const handleMouseEnterInteractive = (e: Event) => {
+      const target = e.currentTarget as HTMLElement;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
       state.isHovering = true;
       state.circleSize = HOVER_CIRCLE_SIZE;
-      dot.style.transform += " scale(0.5)";
-      dot.style.opacity = "0.5";
+      state.hoverCenterX = rect.left + rect.width / 2;
+      state.hoverCenterY = rect.top + rect.height / 2;
+      dot.style.opacity = "0.3";
     };
 
     const handleMouseLeaveInteractive = () => {
@@ -92,70 +99,25 @@ export function CustomCursor() {
       circle.style.opacity = "0";
     };
 
-    // Animation loop for the delayed circle
+    // Animation loop for the delayed + magnetic circle
     const animate = () => {
-      const targetX = state.x;
-      const targetY = state.y;
-
       // Lerp the circle toward the mouse
-      state.circleX = lerp(state.circleX, targetX, LERP_SPEED);
-      state.circleY = lerp(state.circleY, targetY, LERP_SPEED);
+      state.circleX = lerp(state.circleX, state.x, LERP_SPEED);
+      state.circleY = lerp(state.circleY, state.y, LERP_SPEED);
 
-      // Magnetic pull toward hovered element center
-      let snapX = 0;
-      let snapY = 0;
-      let snapScale = 1;
+      let finalX = state.circleX;
+      let finalY = state.circleY;
 
+      // Magnetic pull toward the hovered element's center
       if (state.isHovering) {
-        const hovered = document.querySelector(":hover") as HTMLElement;
-        if (hovered && hovered !== document.body && hovered !== document.documentElement) {
-          const rect = hovered.getBoundingClientRect();
-          const centerX = rect.left + rect.width / 2;
-          const centerY = rect.top + rect.height / 2;
-
-          // Pull circle toward element center
-          const dx = centerX - state.circleX;
-          const dy = centerY - state.circleY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist > 1) {
-            snapX = (dx / dist) * dist * MAGNETIC_STRENGTH;
-            snapY = (dy / dist) * dist * MAGNETIC_STRENGTH;
-          }
-
-          // Edge snap: if circle is close to element border, snap to it
-          const edgeDist = Math.min(
-            Math.abs(state.circleY - rect.top),
-            Math.abs(state.circleY - rect.bottom),
-            Math.abs(state.circleX - rect.left),
-            Math.abs(state.circleX - rect.right)
-          );
-
-          if (edgeDist < SNAP_THRESHOLD) {
-            snapScale = 1.2;
-            // Snap circle to the nearest edge
-            const distances = [
-              { d: Math.abs(state.circleY - rect.top), axis: "top" },
-              { d: Math.abs(state.circleY - rect.bottom), axis: "bottom" },
-              { d: Math.abs(state.circleX - rect.left), axis: "left" },
-              { d: Math.abs(state.circleX - rect.right), axis: "right" },
-            ];
-            distances.sort((a, b) => a.d - b.d);
-            const nearest = distances[0];
-
-            if (nearest.axis === "top") snapY = -SNAP_STRENGTH * 15;
-            else if (nearest.axis === "bottom") snapY = SNAP_STRENGTH * 15;
-            else if (nearest.axis === "left") snapX = -SNAP_STRENGTH * 15;
-            else if (nearest.axis === "right") snapX = SNAP_STRENGTH * 15;
-          }
-        }
+        const dx = state.hoverCenterX - state.circleX;
+        const dy = state.hoverCenterY - state.circleY;
+        finalX = state.circleX + dx * MAGNETIC_STRENGTH;
+        finalY = state.circleY + dy * MAGNETIC_STRENGTH;
       }
 
-      const finalX = state.circleX + snapX;
-      const finalY = state.circleY + snapY;
       const halfSize = state.circleSize / 2;
-
-      circle.style.transform = `translate(${finalX - halfSize}px, ${finalY - halfSize}px) scale(${snapScale})`;
+      circle.style.transform = `translate(${finalX - halfSize}px, ${finalY - halfSize}px)`;
       circle.style.width = `${state.circleSize}px`;
       circle.style.height = `${state.circleSize}px`;
 
@@ -166,24 +128,32 @@ export function CustomCursor() {
     document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseleave", handleMouseLeave);
 
-    // Observe interactive elements for hover
-    const interactiveSelector = 'a, button, [role="button"], input, textarea, select, [tabindex]:not([tabindex="-1"]), [data-cursor-hover], .cursor-hover';
-
-    const attachHoverListeners = () => {
-      document.querySelectorAll(interactiveSelector).forEach((el) => {
-        el.addEventListener("mouseenter", handleMouseEnterInteractive);
-        el.addEventListener("mouseleave", handleMouseLeaveInteractive);
-      });
+    // Attach hover listeners to interactive elements
+    const attachHoverListeners = (root: ParentNode = document.body) => {
+      try {
+        root.querySelectorAll(INTERACTIVE_SELECTOR).forEach((el) => {
+          if ((el as HTMLElement).dataset.cursorBound) return;
+          (el as HTMLElement).dataset.cursorBound = "1";
+          el.addEventListener("mouseenter", handleMouseEnterInteractive);
+          el.addEventListener("mouseleave", handleMouseLeaveInteractive);
+        });
+      } catch {
+        /* ignore */
+      }
     };
 
-    // Initial attach + observe DOM changes
     attachHoverListeners();
-    const observer = new MutationObserver(() => {
-      attachHoverListeners();
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        m.addedNodes.forEach((node) => {
+          if (node.nodeType === 1) {
+            attachHoverListeners(node.parentElement || document);
+          }
+        });
+      }
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // Start animation
     rafRef.current = requestAnimationFrame(animate);
 
     return () => {
@@ -192,14 +162,13 @@ export function CustomCursor() {
       document.removeEventListener("mouseleave", handleMouseLeave);
       observer.disconnect();
     };
-  }, []);
+  }, [enableCustomCursor, loading]);
 
-  // Don't render on SSR or touch devices
   if (!mounted) return null;
 
   return (
     <>
-      {/* Inner Dot */}
+      {/* Inner Dot — small, follows instantly, inverts on hover */}
       <div
         ref={dotRef}
         className="fixed top-0 left-0 z-[9999] pointer-events-none opacity-0"
@@ -207,13 +176,13 @@ export function CustomCursor() {
           width: DOT_SIZE,
           height: DOT_SIZE,
           borderRadius: "50%",
-          backgroundColor: "var(--cursor-dot, #000)",
+          backgroundColor: "white",
           mixBlendMode: "difference",
-          transition: "opacity 0.3s, transform 0.15s ease-out",
+          transition: "opacity 0.3s, transform 0.1s ease-out",
           willChange: "transform",
         }}
       />
-      {/* Outer Circle */}
+      {/* Outer Circle — larger, follows with lerp, inverts on hover */}
       <div
         ref={circleRef}
         className="fixed top-0 left-0 z-[9998] pointer-events-none opacity-0"
@@ -221,14 +190,13 @@ export function CustomCursor() {
           width: DEFAULT_CIRCLE_SIZE,
           height: DEFAULT_CIRCLE_SIZE,
           borderRadius: "50%",
-          border: "1.5px solid var(--cursor-circle, #000)",
+          border: "1.5px solid white",
           backgroundColor: "transparent",
           mixBlendMode: "difference",
-          transition: "opacity 0.3s, width 0.3s ease-out, height 0.3s ease-out",
+          transition: "opacity 0.3s, width 0.25s ease-out, height 0.25s ease-out",
           willChange: "transform",
         }}
       />
-      {/* Hide default cursor globally */}
       <style jsx global>{`
         * {
           cursor: none !important;
@@ -238,9 +206,8 @@ export function CustomCursor() {
             cursor: auto !important;
           }
         }
-        /* Ensure text selection cursor still works conceptually */
         ::selection {
-          background-color: rgba(59, 130, 246, 0.3);
+          background-color: hsl(var(--primary) / 0.3);
         }
       `}</style>
     </>

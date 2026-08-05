@@ -1,7 +1,24 @@
 'use client'
 
-import { useEffect, useState, useMemo, useCallback } from 'react'
-import { Plus, Pencil, Trash2, Eye, Search, X, CheckSquare, Square, EyeOff, Clock } from 'lucide-react'
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react'
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Eye,
+  Search,
+  X,
+  CheckSquare,
+  Square,
+  EyeOff,
+  Clock,
+  Upload,
+  Link2,
+  FileVideo,
+  Image as ImageIcon,
+  ExternalLink,
+  Paperclip,
+} from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,7 +26,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
-import { EmbedUrlInput } from "@/components/embed-renderer"
+import { EmbedUrlInput, parseCustomEmbed } from "@/components/embed-renderer"
 import {
   Dialog,
   DialogContent,
@@ -52,6 +69,477 @@ import ReactMarkdown from 'react-markdown'
 import { SortBar, SortOption } from './sort-bar'
 import { SeoPreview } from "@/components/admin/seo-preview"
 
+// ─── Feature #16 Part A: Resource Links sub-component ────────────────────
+//
+// Modeled after ContributorsInput — manages a JSON-stringified array of
+// { label, url, description } internally; the parent form just stores
+// the string in `form.resourceLinks`.
+
+interface ResourceLink {
+  label: string
+  url: string
+  description: string
+}
+
+interface ResourceLinksInputProps {
+  value: string // JSON string
+  onChange: (val: string) => void
+}
+
+function parseResourceLinks(raw: string): ResourceLink[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      return parsed
+        .filter((x) => x && typeof x === 'object')
+        .map((x) => ({
+          label: typeof x.label === 'string' ? x.label : '',
+          url: typeof x.url === 'string' ? x.url : '',
+          description: typeof x.description === 'string' ? x.description : '',
+        }))
+    }
+  } catch {
+    /* fall through to empty */
+  }
+  return []
+}
+
+function ResourceLinksInput({ value, onChange }: ResourceLinksInputProps) {
+  const links = useMemo(() => parseResourceLinks(value), [value])
+
+  const commit = useCallback(
+    (next: ResourceLink[]) => {
+      onChange(JSON.stringify(next))
+    },
+    [onChange],
+  )
+
+  const addLink = useCallback(() => {
+    commit([...links, { label: '', url: '', description: '' }])
+  }, [links, commit])
+
+  const removeLink = useCallback(
+    (index: number) => {
+      commit(links.filter((_, i) => i !== index))
+    },
+    [links, commit],
+  )
+
+  const updateLink = useCallback(
+    (index: number, field: keyof ResourceLink, val: string) => {
+      const next = [...links]
+      next[index] = { ...next[index], [field]: val }
+      commit(next)
+    },
+    [links, commit],
+  )
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <Label>Resource Links</Label>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
+            External links shown in the blog sidebar (docs, related articles, tools, etc.).
+          </p>
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={addLink} className="h-7 text-xs">
+          <Plus className="w-3 h-3 mr-1" /> Add Link
+        </Button>
+      </div>
+
+      {links.length === 0 && (
+        <div className="text-center py-6 rounded-xl border border-dashed border-border text-muted-foreground text-sm">
+          <ExternalLink className="w-6 h-6 mx-auto mb-1.5 opacity-40" />
+          No resource links added yet
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {links.map((link, i) => (
+          <div
+            key={i}
+            className="rounded-xl border bg-card p-3 space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-muted-foreground">
+                #{i + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeLink(i)}
+                className="p-1 rounded-md text-muted-foreground hover:text-destructive transition-colors"
+                aria-label={`Remove resource link #${i + 1}`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <Input
+                value={link.label}
+                onChange={(e) => updateLink(i, 'label', e.target.value)}
+                placeholder="Label (e.g. Official Docs)"
+                className="text-sm"
+              />
+              <Input
+                value={link.url}
+                onChange={(e) => updateLink(i, 'url', e.target.value)}
+                placeholder="https://example.com"
+                className="text-sm font-mono"
+              />
+            </div>
+            <Input
+              value={link.description}
+              onChange={(e) => updateLink(i, 'description', e.target.value)}
+              placeholder="Short description (optional)"
+              className="text-sm"
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Feature #16 Part B: Custom Embed Uploader Dialog ────────────────────
+//
+// Lets the admin either paste an embed URL OR upload a file (image/video)
+// which is converted to a base64 data URL via FileReader and appended to
+// the embeds field (newline-separated).
+
+interface CustomEmbedDialogProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  embeds: string // current newline-separated embeds
+  onChange: (next: string) => void
+}
+
+const MAX_RECOMMENDED_BYTES = 2 * 1024 * 1024 // 2 MB
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n} B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / (1024 * 1024)).toFixed(2)} MB`
+}
+
+function CustomEmbedDialog({ open, onOpenChange, embeds, onChange }: CustomEmbedDialogProps) {
+  const { toast } = useToast()
+  const [mode, setMode] = useState<'url' | 'file'>('url')
+  const [urlInput, setUrlInput] = useState('')
+  const [filePreview, setFilePreview] = useState<{ name: string; size: number; type: string; dataUrl: string } | null>(null)
+  const [reading, setReading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Current embeds list (newline-separated → array)
+  const embedList = useMemo(() => {
+    return (embeds || '')
+      .split('\n')
+      .map((u) => u.trim())
+      .filter(Boolean)
+  }, [embeds])
+
+  const appendEmbed = useCallback(
+    (entry: string) => {
+      const trimmed = entry.trim()
+      if (!trimmed) return
+      const next = [...embedList, trimmed]
+      onChange(next.join('\n'))
+    },
+    [embedList, onChange],
+  )
+
+  const removeEmbed = useCallback(
+    (index: number) => {
+      const next = embedList.filter((_, i) => i !== index)
+      onChange(next.join('\n'))
+    },
+    [embedList, onChange],
+  )
+
+  const handleAddUrl = useCallback(() => {
+    const url = urlInput.trim()
+    if (!url) {
+      toast({ title: 'Enter a URL first', variant: 'destructive' })
+      return
+    }
+    // Validate: either a known embed URL or any http(s) URL or a data URL.
+    const isHttp = /^https?:\/\//i.test(url)
+    const isData = /^data:(image|video)\//i.test(url)
+    if (!isHttp && !isData) {
+      toast({ title: 'URL must start with http(s):// or data:image/ / data:video:', variant: 'destructive' })
+      return
+    }
+    appendEmbed(url)
+    setUrlInput('')
+    toast({ title: 'Embed added', description: 'URL appended to embeds.' })
+  }, [urlInput, appendEmbed, toast])
+
+  const handleFileSelected = useCallback(
+    (file: File) => {
+      if (!file) return
+      const isImage = file.type.startsWith('image/')
+      const isVideo = file.type.startsWith('video/')
+      if (!isImage && !isVideo) {
+        toast({
+          title: 'Unsupported file type',
+          description: 'Please upload an image (PNG, JPG, GIF, WebP) or a video (MP4, WebM).',
+          variant: 'destructive',
+        })
+        return
+      }
+      setReading(true)
+      const reader = new FileReader()
+      reader.onload = () => {
+        const dataUrl = typeof reader.result === 'string' ? reader.result : ''
+        setFilePreview({ name: file.name, size: file.size, type: file.type, dataUrl })
+        setReading(false)
+      }
+      reader.onerror = () => {
+        setReading(false)
+        toast({ title: 'Failed to read file', variant: 'destructive' })
+      }
+      reader.readAsDataURL(file)
+    },
+    [toast],
+  )
+
+  const handleAddFile = useCallback(() => {
+    if (!filePreview) {
+      toast({ title: 'Upload a file first', variant: 'destructive' })
+      return
+    }
+    appendEmbed(filePreview.dataUrl)
+    setFilePreview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    toast({
+      title: 'Asset added',
+      description: `${filePreview.name} (${formatBytes(filePreview.size)}) embedded as a data URL.`,
+    })
+  }, [filePreview, appendEmbed, toast])
+
+  const handleClose = useCallback(() => {
+    setUrlInput('')
+    setFilePreview(null)
+    setMode('url')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    onOpenChange(false)
+  }, [onOpenChange])
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => (o ? onOpenChange(true) : handleClose())}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Paperclip className="h-4 w-4" />
+            Custom Embed Uploader
+          </DialogTitle>
+          <DialogDescription>
+            Add embeddable URLs (YouTube, Spotify, Tweets, CodePen, any URL) or upload an
+            image/video file (stored inline as a base64 data URL).
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Mode toggle */}
+        <div className="flex gap-1 rounded-lg bg-muted p-1 mb-3">
+          <button
+            type="button"
+            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              mode === 'url'
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => setMode('url')}
+          >
+            <Link2 className="inline h-3.5 w-3.5 mr-1.5" />
+            Paste URL
+          </button>
+          <button
+            type="button"
+            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              mode === 'file'
+                ? 'bg-background shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+            onClick={() => setMode('file')}
+          >
+            <Upload className="inline h-3.5 w-3.5 mr-1.5" />
+            Upload File
+          </button>
+        </div>
+
+        {mode === 'url' ? (
+          <div className="space-y-2">
+            <Label htmlFor="embed-url-input">Embed URL</Label>
+            <div className="flex gap-2">
+              <Input
+                id="embed-url-input"
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                placeholder="https://youtube.com/watch?v=... or any URL"
+                className="font-mono text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleAddUrl()
+                  }
+                }}
+              />
+              <Button type="button" onClick={handleAddUrl} size="sm">
+                <Plus className="h-4 w-4 mr-1" /> Add
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Supports YouTube (videos/shorts/playlists), Spotify, Twitter/X, CodePen, or any
+              iframe-able URL.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="embed-file-input">Upload Image or Video</Label>
+              <input
+                ref={fileInputRef}
+                id="embed-file-input"
+                type="file"
+                accept="image/*,video/*"
+                className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-primary-foreground hover:file:bg-primary/90 cursor-pointer mt-1"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) handleFileSelected(file)
+                }}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Files larger than 2 MB will work but are not recommended — base64 data URLs
+                inflate the embeds field significantly and slow down the admin/blog load.
+              </p>
+            </div>
+
+            {reading && (
+              <div className="text-sm text-muted-foreground flex items-center gap-2">
+                <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+                Reading file…
+              </div>
+            )}
+
+            {filePreview && (
+              <div className="rounded-lg border p-3 space-y-2 bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium">
+                    {filePreview.type.startsWith('image/') ? (
+                      <ImageIcon className="inline h-3.5 w-3.5 mr-1" />
+                    ) : (
+                      <FileVideo className="inline h-3.5 w-3.5 mr-1" />
+                    )}
+                    {filePreview.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilePreview(null)
+                      if (fileInputRef.current) fileInputRef.current.value = ''
+                    }}
+                    className="text-muted-foreground hover:text-destructive"
+                    aria-label="Clear preview"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {filePreview.type} · {formatBytes(filePreview.size)}
+                  {filePreview.size > MAX_RECOMMENDED_BYTES && (
+                    <span className="ml-2 text-amber-600 dark:text-amber-400 font-medium">
+                      ⚠ Exceeds 2 MB — embedding will bloat the blog record.
+                    </span>
+                  )}
+                </div>
+                {/* Live preview */}
+                <div className="rounded-md overflow-hidden border bg-background max-h-72 flex items-center justify-center">
+                  {filePreview.type.startsWith('image/') ? (
+                    <img
+                      src={filePreview.dataUrl}
+                      alt={filePreview.name}
+                      className="max-h-72 w-auto object-contain"
+                    />
+                  ) : (
+                    <video
+                      src={filePreview.dataUrl}
+                      controls
+                      className="max-h-72 w-full"
+                    />
+                  )}
+                </div>
+                <Button type="button" size="sm" onClick={handleAddFile} className="w-full">
+                  <Plus className="h-4 w-4 mr-1" /> Add to Embeds
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Current embeds list */}
+        <div className="space-y-2 mt-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-sm">
+              Current Embeds
+              <Badge variant="secondary" className="ml-2 text-[10px]">{embedList.length}</Badge>
+            </Label>
+          </div>
+          {embedList.length === 0 ? (
+            <div className="text-center py-4 rounded-lg border border-dashed text-muted-foreground text-xs">
+              No embeds yet. Add one above.
+            </div>
+          ) : (
+            <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+              {embedList.map((url, i) => {
+                const info = parseCustomEmbed(url)
+                const isData = url.startsWith('data:')
+                const display = isData
+                  ? `data:${info?.dataKind || 'asset'}/… (${formatBytes(
+                      Math.ceil((url.length * 3) / 4),
+                    )})`
+                  : url
+                return (
+                  <div
+                    key={`${i}-${display.slice(0, 40)}`}
+                    className="flex items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-xs"
+                  >
+                    {info?.type === 'youtube' && <span className="text-red-600 dark:text-red-400">▶</span>}
+                    {info?.type === 'spotify' && <span className="text-green-600 dark:text-green-400">♪</span>}
+                    {info?.type === 'twitter' && <span className="text-blue-600 dark:text-blue-400">𝕏</span>}
+                    {info?.type === 'custom' && <Link2 className="h-3 w-3 text-muted-foreground" />}
+                    {info?.type === 'data' && info.dataKind === 'image' && (
+                      <ImageIcon className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    )}
+                    {info?.type === 'data' && info.dataKind === 'video' && (
+                      <FileVideo className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                    )}
+                    <span className="truncate flex-1 font-mono">{display}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeEmbed(i)}
+                      className="text-muted-foreground hover:text-destructive shrink-0"
+                      aria-label={`Remove embed #${i + 1}`}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 interface Blog {
   id: string
   title: string
@@ -62,6 +550,7 @@ interface Blog {
   tags: string
   type: string
   embeds: string
+  resourceLinks: string
   published: boolean
   writtenBy: string
   acceptedBy: string
@@ -80,6 +569,7 @@ interface BlogForm {
   tags: string
   type: string
   embeds: string
+  resourceLinks: string
   published: boolean
   writtenBy: string
   acceptedBy: string
@@ -98,6 +588,7 @@ const emptyForm: BlogForm = {
   tags: '',
   type: 'article',
   embeds: '',
+  resourceLinks: '[]',
   published: false,
   writtenBy: '',
   acceptedBy: '',
@@ -154,6 +645,9 @@ export function BlogManager() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkLoading, setBulkLoading] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+
+  // Feature #16 Part B: Custom Embed uploader dialog
+  const [customEmbedOpen, setCustomEmbedOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -214,6 +708,7 @@ export function BlogManager() {
       tags: blog.tags,
       type: blog.type,
       embeds: blog.embeds || '',
+      resourceLinks: blog.resourceLinks || '[]',
       published: blog.published,
       writtenBy: blog.writtenBy || '',
       acceptedBy: blog.acceptedBy || '',
@@ -753,16 +1248,59 @@ export function BlogManager() {
                 </div>
               </div>
 
-              {/* Embeds (conditional) */}
-              {form.type !== 'article' && (
-                <div className="flex flex-col gap-2">
-                  <Label>Embeds</Label>
+              {/* Embeds + Custom Embed Uploader (Feature #16 Part B) */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Label>Embeds</Label>
+                    {form.embeds &&
+                      form.embeds
+                        .split('\n')
+                        .map((u) => u.trim())
+                        .filter(Boolean).length > 0 && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          {form.embeds.split('\n').map((u) => u.trim()).filter(Boolean).length} embed(s)
+                        </Badge>
+                      )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCustomEmbedOpen(true)}
+                    className="h-7 text-xs"
+                  >
+                    <Paperclip className="h-3.5 w-3.5 mr-1" />
+                    Custom Embed
+                  </Button>
+                </div>
+                {form.type !== 'article' ? (
                   <EmbedUrlInput
                     value={form.embeds}
                     onChange={(v) => setForm((f) => ({ ...f, embeds: v }))}
                   />
-                </div>
-              )}
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    No manual embed URLs for article-type posts. Use{' '}
+                    <button
+                      type="button"
+                      className="text-primary underline-offset-2 hover:underline"
+                      onClick={() => setCustomEmbedOpen(true)}
+                    >
+                      Custom Embed
+                    </button>{' '}
+                    to attach images, videos, or other embeddable URLs.
+                  </p>
+                )}
+              </div>
+
+              {/* Resource Links (Feature #16 Part A) */}
+              <div className="rounded-lg border p-3 bg-muted/30">
+                <ResourceLinksInput
+                  value={form.resourceLinks}
+                  onChange={(v) => setForm((f) => ({ ...f, resourceLinks: v }))}
+                />
+              </div>
 
               
 
@@ -991,6 +1529,14 @@ export function BlogManager() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Feature #16 Part B: Custom Embed Uploader Dialog */}
+      <CustomEmbedDialog
+        open={customEmbedOpen}
+        onOpenChange={setCustomEmbedOpen}
+        embeds={form.embeds}
+        onChange={(v) => setForm((f) => ({ ...f, embeds: v }))}
+      />
     </div>
   )
 }

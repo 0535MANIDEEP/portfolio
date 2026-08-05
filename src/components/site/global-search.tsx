@@ -16,11 +16,27 @@ interface SearchResult {
   description: string
 }
 
+/** Highlights the matched query substring within text using <mark>. */
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>
+  const q = query.trim()
+  const idx = text.toLowerCase().indexOf(q.toLowerCase())
+  if (idx === -1) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="rounded bg-primary/20 px-0.5 text-foreground">{text.slice(idx, idx + q.length)}</mark>
+      {text.slice(idx + q.length)}
+    </>
+  )
+}
+
 export function GlobalSearch() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
   const router = useRouter()
 
   useEffect(() => {
@@ -33,6 +49,30 @@ export function GlobalSearch() {
     window.addEventListener('keydown', down)
     return () => window.removeEventListener('keydown', down)
   }, [])
+
+  // Keyboard navigation within results (arrow keys + Enter)
+  useEffect(() => {
+    if (!open) return
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setActiveIndex(prev => Math.min(prev + 1, results.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setActiveIndex(prev => Math.max(prev - 1, 0))
+      } else if (e.key === 'Enter' && results[activeIndex]) {
+        e.preventDefault()
+        handleSelect(results[activeIndex])
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [open, results, activeIndex])
+
+  // Reset active index when results change
+  useEffect(() => {
+    setActiveIndex(0)
+  }, [query])
 
   useEffect(() => {
     if (!query.trim()) { setResults([]); return }
@@ -134,26 +174,28 @@ export function GlobalSearch() {
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
               >
-                {results.map(result => {
+                {results.map((result, idx) => {
                   const Icon = typeIcons[result.type]
+                  const isActive = idx === activeIndex
                   return (
                     <button
                       key={result.slug + result.type}
                       onClick={() => handleSelect(result)}
-                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-accent transition-colors text-left border-b last:border-0"
+                      onMouseEnter={() => setActiveIndex(idx)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 transition-colors text-left border-b last:border-0 ${isActive ? 'bg-accent' : 'hover:bg-accent'}`}
                     >
-                      <div className="rounded-md bg-muted p-1.5 shrink-0">
-                        <Icon className="h-4 w-4 text-muted-foreground" />
+                      <div className={`rounded-md p-1.5 shrink-0 ${isActive ? 'bg-primary/15' : 'bg-muted'}`}>
+                        <Icon className={`h-4 w-4 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{result.title}</p>
-                        <p className="text-xs text-muted-foreground truncate">{result.description}</p>
+                        <p className="text-sm font-medium truncate"><HighlightMatch text={result.title} query={query} /></p>
+                        <p className="text-xs text-muted-foreground truncate"><HighlightMatch text={result.description} query={query} /></p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
                           {typeLabels[result.type]}
                         </span>
-                        <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                        <ArrowRight className={`h-3 w-3 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
                       </div>
                     </button>
                   )
@@ -163,8 +205,9 @@ export function GlobalSearch() {
           </div>
 
           {/* Footer */}
-          <div className="border-t px-4 py-2 flex items-center gap-4 text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1"><kbd className="rounded border bg-muted px-1">Tab</kbd> to navigate</span>
+          <div className="border-t px-4 py-2 flex items-center gap-4 text-[10px] text-muted-foreground flex-wrap">
+            <span className="flex items-center gap-1"><kbd className="rounded border bg-muted px-1">↑↓</kbd> to navigate</span>
+            <span className="flex items-center gap-1"><kbd className="rounded border bg-muted px-1">↵</kbd> to select</span>
             <span className="flex items-center gap-1"><kbd className="rounded border bg-muted px-1">Esc</kbd> to close</span>
           </div>
         </DialogContent>

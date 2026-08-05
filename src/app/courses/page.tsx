@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Navbar, Footer } from '@/components/site/navbar'
+import { Navbar, Footer } from "@/components/site/navbar"
+import { PageTransition } from "@/components/site/page-transition"
 import { CourseCard, LoadingCards } from '@/components/site/cards'
 
 interface Course { id: string; title: string; slug: string; description: string; banner: string; _count?: { chapters: number } }
@@ -12,13 +13,13 @@ export default function CoursesPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/courses').then(r => r.json()).then(data => { setCourses(data); setLoading(false) }).catch(() => setLoading(false))
+    fetch('/api/courses').then(r => r.json()).then(data => { setCourses(Array.isArray(data) ? data : []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 py-20 px-4">
+      <main id="main-content" className="flex-1 py-20 px-4">
         <div className="mx-auto max-w-6xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
             <h1 className="text-3xl font-bold sm:text-4xl">Courses</h1>

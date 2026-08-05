@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateSlug } from '@/lib/slug'
+import { logOperation, logError } from '@/lib/log-operation'
 
 export async function GET(request: NextRequest) {
   try {
@@ -26,6 +27,30 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/** Normalize a JSON-array-like field to a JSON string. Falls back to default. */
+function normalizeJsonArrayField(
+  value: unknown,
+  defaultValue = '[]'
+): string {
+  if (value == null || value === '') return defaultValue
+  if (typeof value === 'string') {
+    // Validate it parses; otherwise fall back to default
+    try {
+      JSON.parse(value)
+      return value
+    } catch {
+      return defaultValue
+    }
+  }
+  if (Array.isArray(value)) {
+    return JSON.stringify(value)
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value)
+  }
+  return defaultValue
 }
 
 export async function POST(request: NextRequest) {
@@ -58,8 +83,8 @@ export async function POST(request: NextRequest) {
         website: body.website ?? '',
         downloadLink: body.downloadLink ?? '',
         repository: body.repository ?? '',
-        stack: typeof body.stack === 'object' ? JSON.stringify(body.stack) : (body.stack ?? '[]'),
-        screenshots: typeof body.screenshots === 'object' ? JSON.stringify(body.screenshots) : (body.screenshots ?? '[]'),
+        stack: normalizeJsonArrayField(body.stack, '[]'),
+        screenshots: normalizeJsonArrayField(body.screenshots, '[]'),
         featured: body.featured ?? false,
         role: body.role ?? '',
         process: body.process ?? '',
@@ -77,12 +102,27 @@ export async function POST(request: NextRequest) {
         terminalSessionUrl: body.terminalSessionUrl ?? '',
         behindTheScenes: body.behindTheScenes ?? '',
         videoUrl: body.videoUrl ?? '',
+        // Multi-diagram architecture gallery (JSON array of {title,url,description,type})
+        architectureDiagrams: normalizeJsonArrayField(body.architectureDiagrams, '[]'),
+        // Team / contributors
+        contributors: normalizeJsonArrayField(body.contributors, '[]'),
+        showTeam: body.showTeam ?? false,
+        // Embeds (JSON array of URLs / custom embeds)
+        embeds: normalizeJsonArrayField(body.embeds, '[]'),
       },
+    })
+
+    await logOperation({
+      action: 'project.create',
+      entityType: 'project',
+      entityId: project.id,
+      details: JSON.stringify({ title: project.title, slug: project.slug }),
     })
 
     return NextResponse.json(project, { status: 201 })
   } catch (error) {
     console.error('Create project error:', error)
+    await logError('project.create', error, { entityType: 'project' })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

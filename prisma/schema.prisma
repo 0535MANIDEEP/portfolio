@@ -72,6 +72,23 @@ model BlogPost {
   writtenBy       String?   @default("")
   category        String    @default("")
   scheduledAt     DateTime?
+  // Feature #16: Resource Links (JSON array of {label, url, description})
+  resourceLinks   String    @default("[]")
+  // Feature #19: status for ideas pipeline (idea, drafting, review, published)
+  status          String    @default("published")
+}
+
+model BlogIdea {
+  id          String   @id @default(cuid())
+  title       String
+  description String   @default("")
+  tags        String   @default("")
+  status      String   @default("idea")
+  priority    String   @default("medium")
+  source      String   @default("")
+  notes       String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Project {
@@ -109,6 +126,8 @@ model Project {
   contributors           String   @default("[]")
   showTeam               Boolean  @default(false)
   embeds                 String   @default("")
+  // Feature: Architecture diagrams (JSON array of {title, url, description, type})
+  architectureDiagrams   String   @default("[]")
 }
 
 model Course {
@@ -124,20 +143,24 @@ model Course {
 }
 
 model CourseChapter {
-  id          String          @id @default(cuid())
-  title       String
-  slug        String
-  content     String          @default("")
-  order       Int             @default(0)
-  sectionName String          @default("")
-  courseId    String
-  parentId    String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  chapterType String          @default("content")
-  course      Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  parent      CourseChapter?  @relation("ChapterChildren", fields: [parentId], references: [id])
-  children    CourseChapter[] @relation("ChapterChildren")
+  id               String          @id @default(cuid())
+  title            String
+  slug             String
+  content          String          @default("")
+  order            Int             @default(0)
+  sectionName      String          @default("")
+  courseId         String
+  parentId         String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  chapterType      String          @default("content")
+  // Feature #17: Link existing blogs/snippets as chapters
+  linkedBlogSlug   String          @default("")
+  linkedSnippetSlug String         @default("")
+  titleOverride    String          @default("")
+  course           Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  parent           CourseChapter?  @relation("ChapterChildren", fields: [parentId], references: [id])
+  children         CourseChapter[] @relation("ChapterChildren")
 }
 
 model ContactMessage {
@@ -148,6 +171,10 @@ model ContactMessage {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+  // Feature #18: reply tracking
+  replied   Boolean  @default(false)
+  repliedAt DateTime?
+  replyNote String   @default("")
 }
 
 model Todo {

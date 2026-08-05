@@ -37,7 +37,7 @@ export default function ContactPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 py-20 px-4">
+      <main id="main-content" className="flex-1 py-20 px-4">
         <div className="mx-auto max-w-4xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
             <h1 className="text-3xl font-bold sm:text-4xl">Get in Touch</h1>
@@ -64,7 +64,13 @@ export default function ContactPage() {
                 <div className="flex gap-3">
                   <a href="https://github.com/gokulsaraswat" target="_blank" rel="noreferrer" className="p-2 rounded-lg border hover:bg-accent transition-all duration-300 hover:scale-125 hover:rotate-3" aria-label="GitHub"><Github className="h-5 w-5" /></a>
                   <a href="https://www.linkedin.com/in/gokulsaraswat" target="_blank" rel="noreferrer" className="p-2 rounded-lg border hover:bg-[#0A66C2]/10 hover:border-[#0A66C2]/30 hover:text-[#0A66C2] transition-all duration-300 hover:scale-125" aria-label="LinkedIn"><Linkedin className="h-5 w-5" /></a>
-                  <a href="https://x.com/gokulsaraswat" target="_blank" rel="noreferrer" className="p-2 rounded-lg border hover:bg-black/5 hover:border-black/30 hover:text-black dark:hover:bg-white/5 dark:hover:border-white/30 dark:hover:text-white transition-all duration-300 hover:scale-125" aria-label="X.com"><Twitter className="h-5 w-5" /></a>
+                  <a href="https://x.com/gokulsaraswat" target="_blank" rel="noreferrer" className="p-2 rounded-lg border hover:bg-black/5 hover:border-black/30 hover:text-black dark:hover:bg-white/5 dark:hover:border-white/30 dark:hover:text-white transition-all duration-300 hover:scale-125" aria-label="X.com"><svg 
+                    viewBox="0 0 24 24" 
+                    aria-hidden="true" 
+                    className="h-5 w-5 fill-current"
+                  >
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                  </svg></a>
                 </div>
               </div>
             </motion.div>

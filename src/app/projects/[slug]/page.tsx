@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
@@ -10,7 +10,7 @@ import { CommentSection } from '@/components/site/comment-section'
 import {
   ArrowLeft, ExternalLink, Github, Download, Calendar,
   User, FolderGit2, Code2, Database, FileText, Terminal,
-  BarChart3, Shield, Eye, BookOpen,
+  BarChart3, Shield, Eye, BookOpen, Network, ZoomIn,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -20,10 +20,12 @@ import { format } from 'date-fns'
 import { EmbedList } from "@/components/embed-renderer"
 import { ContributorsDisplay } from "@/components/contributors-input"
 import { ReadingProgress } from '@/components/site/reading-progress'
+import { Breadcrumbs } from '@/components/site/breadcrumbs'
 import { TableOfContents } from '@/components/site/table-of-contents'
 import { ShareButtons } from '@/components/site/share-buttons'
 import { RelatedContent } from '@/components/site/related-content'
-import { ImageGallery } from '@/components/site/image-lightbox'
+import { ImageGallery, ImageLightbox } from '@/components/site/image-lightbox'
+import { ViewCounter } from '@/components/site/view-counter'
 
 interface Project {
   id: string; title: string; slug: string; description: string
@@ -36,7 +38,53 @@ interface Project {
   swaggerUrl: string; terminalSessionUrl: string; behindTheScenes: string
   videoUrl: string
   featured: boolean; createdAt: string
-  embeds: string; contributorsJson: string; showTeam: boolean
+  embeds: string; contributors: string; showTeam: boolean
+  architectureDiagrams: string
+}
+
+type DiagramType = 'hld' | 'lld' | 'dfd' | 'sequence' | 'erd' | 'other'
+
+interface DiagramEntry {
+  title: string
+  url: string
+  description: string
+  type: DiagramType
+}
+
+const DIAGRAM_TYPE_META: Record<DiagramType, { label: string; badgeClass: string }> = {
+  hld: { label: 'HLD', badgeClass: 'bg-violet-500/15 text-violet-600 dark:text-violet-300 border-violet-500/30' },
+  lld: { label: 'LLD', badgeClass: 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border-blue-500/30' },
+  dfd: { label: 'DFD', badgeClass: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border-emerald-500/30' },
+  sequence: { label: 'Sequence', badgeClass: 'bg-amber-500/15 text-amber-600 dark:text-amber-300 border-amber-500/30' },
+  erd: { label: 'ERD', badgeClass: 'bg-rose-500/15 text-rose-600 dark:text-rose-300 border-rose-500/30' },
+  other: { label: 'Other', badgeClass: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 border-slate-500/30' },
+}
+
+function parseArchitectureDiagrams(raw: string | undefined | null): DiagramEntry[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    const knownTypes: DiagramType[] = ['hld', 'lld', 'dfd', 'sequence', 'erd', 'other']
+    return parsed
+      .filter((d) => d && typeof d === 'object' && (d.url || d.title))
+      .map((d) => ({
+        title: typeof d.title === 'string' ? d.title : '',
+        url: typeof d.url === 'string' ? d.url : '',
+        description: typeof d.description === 'string' ? d.description : '',
+        type: (knownTypes.includes(d.type) ? d.type : 'other') as DiagramType,
+      }))
+  } catch {
+    return []
+  }
+}
+
+function isImageUrl(url: string): boolean {
+  return /\.(png|jpe?g|gif|webp|avif)(\?.*)?$/i.test(url)
+}
+
+function isSvgUrl(url: string): boolean {
+  return /\.svg(\?.*)?$/i.test(url)
 }
 
 function CodeBlock({ title, code, language }: { title: string; code: string; language?: string }) {
@@ -96,6 +144,152 @@ function MarkdownBlock({ title, content, icon: Icon }: { title: string; content:
   )
 }
 
+/* -------------------------------------------------------------------------- */
+/*  Architecture Diagrams Gallery                                              */
+/* -------------------------------------------------------------------------- */
+
+function ArchitectureDiagramsGallery({ diagrams }: { diagrams: DiagramEntry[] }) {
+  const [lightboxOpen, setLightboxOpen] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
+
+  // Build the list of lightboxable images (raster images only). SVG + embed URLs
+  // are not lightboxable via the existing ImageLightbox component (which uses <img>).
+  const lightboxImages = useMemo(
+    () => diagrams.filter((d) => d.url && (isImageUrl(d.url) || isSvgUrl(d.url))).map((d) => d.url),
+    [diagrams]
+  )
+
+  const openLightbox = (url: string) => {
+    const idx = lightboxImages.indexOf(url)
+    if (idx >= 0) {
+      setLightboxIndex(idx)
+      setLightboxOpen(true)
+    }
+  }
+
+  if (diagrams.length === 0) return null
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.08 },
+    },
+  }
+  const itemVariants = {
+    hidden: { opacity: 0, y: 16 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: 'easeOut' as const } },
+  }
+
+  return (
+    <motion.div
+      className="space-y-4"
+      variants={containerVariants}
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, amount: 0.1 }}
+    >
+      <div className="flex items-center gap-2">
+        <Network className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold tracking-tight">Architecture Diagrams</h3>
+        <Badge variant="secondary" className="text-[10px]">{diagrams.length}</Badge>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {diagrams.map((d, i) => {
+          const meta = DIAGRAM_TYPE_META[d.type] ?? DIAGRAM_TYPE_META.other
+          const hasImg = d.url && (isImageUrl(d.url) || isSvgUrl(d.url))
+          const isSvg = d.url && isSvgUrl(d.url)
+          return (
+            <motion.div key={`${d.url}-${i}`} variants={itemVariants}>
+              <Card className="overflow-hidden h-full flex flex-col">
+                <CardHeader className="pb-2 flex flex-row items-start justify-between gap-2 space-y-0">
+                  <CardTitle className="text-sm flex items-center gap-2 leading-tight">
+                    <span className="truncate">{d.title || `Diagram ${i + 1}`}</span>
+                  </CardTitle>
+                  <Badge variant="outline" className={`text-[10px] shrink-0 ${meta.badgeClass}`}>
+                    {meta.label}
+                  </Badge>
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col gap-3">
+                  {d.url ? (
+                    hasImg ? (
+                      <button
+                        type="button"
+                        onClick={() => openLightbox(d.url)}
+                        className="group relative block w-full overflow-hidden rounded-lg border bg-muted/30 aspect-video cursor-zoom-in"
+                        aria-label={`Open ${d.title || 'diagram'} in lightbox`}
+                      >
+                        <img
+                          src={d.url}
+                          alt={d.title || `Diagram ${i + 1}`}
+                          loading="lazy"
+                          className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-[1.02]"
+                          draggable={false}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors duration-200 group-hover:bg-black/30">
+                          <div className="rounded-full bg-white/90 p-2 opacity-0 shadow-md transition-opacity duration-200 group-hover:opacity-100">
+                            <ZoomIn className="h-4 w-4 text-foreground" />
+                          </div>
+                        </div>
+                        {isSvg && (
+                          <Badge variant="secondary" className="absolute left-2 top-2 text-[9px] bg-background/80">SVG</Badge>
+                        )}
+                      </button>
+                    ) : (
+                      // Embed URL (Mermaid, Excalidraw, etc.) — render in an iframe.
+                      <div className="overflow-hidden rounded-lg border aspect-video bg-background">
+                        <iframe
+                          src={d.url}
+                          title={d.title || `Diagram ${i + 1}`}
+                          loading="lazy"
+                          className="h-full w-full"
+                          sandbox="allow-scripts allow-same-origin allow-popups"
+                        />
+                      </div>
+                    )
+                  ) : (
+                    <div className="flex aspect-video items-center justify-center rounded-lg border border-dashed text-xs text-muted-foreground">
+                      No URL provided
+                    </div>
+                  )}
+
+                  {d.description && (
+                    <p className="text-xs text-muted-foreground leading-relaxed">{d.description}</p>
+                  )}
+
+                  {d.url && (
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-auto inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Open original
+                    </a>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )
+        })}
+      </div>
+
+      {lightboxImages.length > 0 && (
+        <ImageLightbox
+          key={lightboxIndex}
+          images={lightboxImages}
+          alt="Architecture diagram"
+          initialIndex={lightboxIndex}
+          isOpen={lightboxOpen}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
+    </motion.div>
+  )
+}
+
 export default function ProjectDetailPage() {
   const params = useParams()
   const [project, setProject] = useState<Project | null>(null)
@@ -118,7 +312,7 @@ export default function ProjectDetailPage() {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
-        <main className="flex-1 py-20 px-4">
+        <main id="main-content" className="flex-1 py-20 px-4">
           <div className="mx-auto max-w-4xl space-y-4">
             <div className="h-8 w-2/3 rounded bg-muted animate-pulse" />
             <div className="h-64 w-full rounded-xl bg-muted animate-pulse mt-6" />
@@ -132,7 +326,7 @@ export default function ProjectDetailPage() {
     return (
       <div className="min-h-screen flex flex-col">
         <Navbar />
-        <main className="flex-1 py-20 px-4 text-center">
+        <main id="main-content" className="flex-1 py-20 px-4 text-center">
           <p className="text-muted-foreground mb-4">Project not found</p>
           <Button asChild variant="outline"><Link href="/projects" className="gap-2"><ArrowLeft className="h-4 w-4" />Back to Projects</Link></Button>
         </main>
@@ -144,14 +338,16 @@ export default function ProjectDetailPage() {
   const stack: string[] = project.stack ? JSON.parse(project.stack) : []
   const screenshots: string[] = project.screenshots ? JSON.parse(project.screenshots) : []
   const allImages = [project.banner, ...screenshots].filter(Boolean) as string[]
-  
+  const diagrams = parseArchitectureDiagrams(project.architectureDiagrams)
+
   const tabs = [
     { id: 'overview', label: 'Overview' },
     { id: 'technical', label: 'Technical Deep-Dive' },
     { id: 'process', label: 'Process & Results' },
   ]
 
-  const hasTechnical = project.architectureDiagramUrl || project.dbSchemaUrl || project.adrContent ||
+  const hasTechnical = diagrams.length > 0 ||
+    project.architectureDiagramUrl || project.dbSchemaUrl || project.adrContent ||
     project.cicdSnippet || project.iacSnippet || project.observabilityUrl || project.testCoverageUrl ||
     project.performanceMetrics || project.securityImplementation || project.swaggerUrl || project.terminalSessionUrl
 
@@ -159,7 +355,7 @@ export default function ProjectDetailPage() {
     <div className="min-h-screen flex flex-col">
       <ReadingProgress />
       <Navbar />
-      <main className="flex-1 py-20 px-4">
+      <main id="main-content" className="flex-1 py-20 px-4">
         <div className="mx-auto max-w-6xl lg:grid lg:grid-cols-[1fr_200px] lg:gap-8">
         <motion.div
           ref={contentRef}
@@ -168,10 +364,11 @@ export default function ProjectDetailPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          {/* Back */}
-          <Button variant="ghost" size="sm" className="mb-6 -ml-2 gap-1.5 text-muted-foreground hover:text-foreground" asChild>
+          {/* Back + Breadcrumbs */}
+          <Button variant="ghost" size="sm" className="mb-3 -ml-2 gap-1.5 text-muted-foreground hover:text-foreground" asChild>
             <Link href="/projects"><ArrowLeft className="h-4 w-4" />Back to Projects</Link>
           </Button>
+          <Breadcrumbs items={[{ label: 'Projects', href: '/projects' }, { label: project.title }]} />
 
           {/* Hero */}
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mb-8">
@@ -180,6 +377,7 @@ export default function ProjectDetailPage() {
             {project.role && (
               <p className="mt-1 text-sm text-primary font-medium">Role: {project.role}</p>
             )}
+            <div className="mt-2"><ViewCounter id={`project:${project.slug}`} label="views" /></div>
             <div className="flex flex-wrap gap-2 mt-4">
               {stack.map(s => (
                 <Badge key={s} variant="secondary" className="text-xs">{s}</Badge>
@@ -207,10 +405,10 @@ export default function ProjectDetailPage() {
 
           {/* Video */}
           {project.videoUrl && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.98 }} 
-              animate={{ opacity: 1, scale: 1 }} 
-              transition={{ delay: 0.2 }} 
+            <motion.div
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.2 }}
               className="mb-8"
             >
               <div className="aspect-video rounded-xl overflow-hidden bg-black">
@@ -253,17 +451,17 @@ export default function ProjectDetailPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  {format(new Date(project.createdAt), 'MMMM yyyy')}                
+                  {format(new Date(project.createdAt), 'MMMM yyyy')}
                 </div>
 
                 {/* Embeds */}
                 {project.embeds && <EmbedList urls={project.embeds} />}
-                  
+
                   {/* Team / Contributors */}
 
-                  {project.showTeam && project.contributorsJson && (
+                  {project.showTeam && project.contributors && (
                     <ContributorsDisplay
-                      contributorsJson={project.contributorsJson}
+                      contributorsJson={project.contributors}
                       showTeam={project.showTeam}
                     />
                   )}
@@ -279,7 +477,14 @@ export default function ProjectDetailPage() {
                   </div>
                 ) : (
                   <>
-                    <ImageBlock title="Architecture Diagram" url={project.architectureDiagramUrl} />
+                    {/* New architecture diagrams gallery (preferred) */}
+                    {diagrams.length > 0 && <ArchitectureDiagramsGallery diagrams={diagrams} />}
+
+                    {/* Legacy single architecture diagram URL (backward compat) */}
+                    {project.architectureDiagramUrl && diagrams.length === 0 && (
+                      <ImageBlock title="Architecture Diagram" url={project.architectureDiagramUrl} />
+                    )}
+
                     <ImageBlock title="Database Schema" url={project.dbSchemaUrl} />
                     <MarkdownBlock title="Architecture Decision Records" content={project.adrContent} icon={BookOpen} />
                     <CodeBlock title="CI/CD Pipeline" code={project.cicdSnippet} language="yaml" />
@@ -332,7 +537,7 @@ export default function ProjectDetailPage() {
             )}
           </div>
           {/* Related Content */}
-          
+
           <RelatedContent
             entityType="project"
             currentSlug={project.slug}

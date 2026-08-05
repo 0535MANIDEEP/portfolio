@@ -5,31 +5,88 @@ import { useState, useCallback } from "react";
 // ─── URL Pattern Matchers ──────────────────────────────────────
 
 interface EmbedInfo {
-  type: "youtube" | "spotify" | "twitter" | "custom";
+  type: "youtube" | "spotify" | "twitter" | "custom" | "data";
   url: string;
   embedUrl: string;
   title?: string;
   aspectRatio?: string;
+  // Feature #19: YouTube specifics (facade pattern)
+  videoId?: string;
+  playlistId?: string;
+  isPlaylist?: boolean;
+  thumbnail?: string;
+  // Feature #16: data URL specifics (uploaded assets)
+  dataKind?: "image" | "video";
+  dataMime?: string;
 }
 
 function parseYouTube(url: string): EmbedInfo | null {
+  // 1) Playlist-only URL: youtube.com/playlist?list=PLxxxx
+  const playlistOnly = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  if (url.includes("playlist") && playlistOnly) {
+    const listId = playlistOnly[1];
+    return {
+      type: "youtube",
+      url,
+      embedUrl: `https://www.youtube.com/embed/videoseries?list=${listId}&rel=0`,
+      title: "YouTube Playlist",
+      aspectRatio: "16/9",
+      playlistId: listId,
+      isPlaylist: true,
+      // Playlists have no single thumbnail — YouTubeEmbed renders a branded
+      // gradient placeholder when `thumbnail` is absent.
+    };
+  }
+
+  // 2) Single-video patterns (incl. shorts, live, embed, watch?v=, youtu.be)
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
     /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
     /youtube\.com\/live\/([a-zA-Z0-9_-]{11})/,
   ];
+  let videoId: string | null = null;
   for (const p of patterns) {
     const m = url.match(p);
     if (m) {
-      return {
-        type: "youtube",
-        url,
-        embedUrl: `https://www.youtube.com/embed/${m[1]}?rel=0`,
-        title: "YouTube Video",
-        aspectRatio: "16/9",
-      };
+      videoId = m[1];
+      break;
     }
   }
+
+  if (videoId) {
+    // Detect an accompanying playlist for the watch URL
+    const listMatch = url.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+    const listId = listMatch ? listMatch[1] : null;
+    const embedUrl = listId
+      ? `https://www.youtube.com/embed/${videoId}?list=${listId}&rel=0`
+      : `https://www.youtube.com/embed/${videoId}?rel=0`;
+    return {
+      type: "youtube",
+      url,
+      embedUrl,
+      title: "YouTube Video",
+      aspectRatio: "16/9",
+      videoId,
+      playlistId: listId || undefined,
+      isPlaylist: false,
+      thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    };
+  }
+
+  // 3) Fallback: only a list= param on a non-watch URL
+  if (playlistOnly) {
+    const listId = playlistOnly[1];
+    return {
+      type: "youtube",
+      url,
+      embedUrl: `https://www.youtube.com/embed/videoseries?list=${listId}&rel=0`,
+      title: "YouTube Playlist",
+      aspectRatio: "16/9",
+      playlistId: listId,
+      isPlaylist: true,
+    };
+  }
+
   return null;
 }
 
@@ -73,6 +130,28 @@ function parseTwitter(url: string): EmbedInfo | null {
   return null;
 }
 
+// Feature #16: detect base64 data URLs produced by the Custom Embed uploader.
+// Matches `data:image/...` or `data:video/...` (with optional mime params / base64 marker).
+const DATA_URL_RE = /^data:(image|video)\/([a-zA-Z0-9.+-]+)([^,]*)?,/i;
+
+function parseDataUrl(url: string): EmbedInfo | null {
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  const m = trimmed.match(DATA_URL_RE);
+  if (!m) return null;
+  const kind = m[1].toLowerCase() as "image" | "video";
+  const mime = `${kind}/${m[2].toLowerCase()}`;
+  return {
+    type: "data",
+    url: trimmed,
+    embedUrl: trimmed, // data URLs are self-contained — no separate embed URL
+    title: kind === "image" ? "Uploaded image" : "Uploaded video",
+    dataKind: kind,
+    dataMime: mime,
+  };
+}
+
 export function parseEmbedUrl(url: string): EmbedInfo | null {
   if (!url || typeof url !== "string") return null;
   const trimmed = url.trim();
@@ -85,6 +164,13 @@ export function parseCustomEmbed(url: string, title?: string): EmbedInfo | null 
   if (!url || typeof url !== "string") return null;
   const trimmed = url.trim();
   if (!trimmed) return null;
+
+  // Feature #16: data URLs (uploaded assets) take priority — never fall through to iframe
+  const dataInfo = parseDataUrl(trimmed);
+  if (dataInfo) {
+    if (title) dataInfo.title = title;
+    return dataInfo;
+  }
 
   // Try known types first
   const known = parseEmbedUrl(trimmed);
@@ -153,22 +239,97 @@ function TwitterIcon() {
 
 // ─── Individual Embed Renderers ────────────────────────────────
 
+/**
+ * Feature #19: YouTube embed with facade pattern.
+ *
+ * Renders a thumbnail (https://img.youtube.com/vi/VIDEO_ID/hqdefault.jpg)
+ * with a play-button overlay. The actual iframe is only loaded when the
+ * user clicks — this avoids pulling in YouTube's heavy player JS for
+ * every embed on the page (performance-friendly).
+ *
+ * For playlists (no single thumbnail), we render a branded placeholder
+ * with a "Playlist" badge and play button.
+ */
 function YouTubeEmbed({ info }: { info: EmbedInfo }) {
+  const [activated, setActivated] = useState(false);
+  const handleClick = useCallback(() => setActivated(true), []);
+
+  const thumbnail = info.videoId
+    ? `https://img.youtube.com/vi/${info.videoId}/hqdefault.jpg`
+    : null;
+  const isPlaylist = !!info.isPlaylist || (!info.videoId && !!info.playlistId);
+
   return (
     <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-black shadow-sm">
       <div className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white text-xs font-medium">
         <YouTubeIcon />
-        <span>YouTube</span>
-        <span className="ml-auto opacity-70 text-[10px] truncate max-w-[200px]">{info.url}</span>
+        <span>{isPlaylist ? "YouTube Playlist" : "YouTube"}</span>
+        <a
+          href={info.url}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto opacity-70 hover:opacity-100 text-[10px] underline-offset-2 hover:underline truncate max-w-[200px]"
+          aria-label="Open original on YouTube"
+        >
+          open ↗
+        </a>
       </div>
+
+      {/* 16:9 stage */}
       <div className="relative w-full" style={{ paddingBottom: "56.25%" }}>
-        <iframe
-          src={info.embedUrl}
-          title={info.title || "YouTube video"}
-          className="absolute inset-0 w-full h-full"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-          allowFullScreen
-        />
+        {activated ? (
+          <iframe
+            src={info.embedUrl}
+            title={info.title || (isPlaylist ? "YouTube playlist" : "YouTube video")}
+            className="absolute inset-0 w-full h-full"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            loading="lazy"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={handleClick}
+            aria-label={`Play ${isPlaylist ? "playlist" : "video"}: ${info.title || info.url}`}
+            className="group absolute inset-0 w-full h-full flex items-center justify-center focus:outline-none focus-visible:ring-4 focus-visible:ring-red-500/40"
+          >
+            {/* Background: thumbnail for videos; branded gradient for playlists */}
+            {thumbnail ? (
+              <img
+                src={thumbnail}
+                alt={info.title || "YouTube thumbnail"}
+                loading="lazy"
+                className="absolute inset-0 w-full h-full object-cover"
+                onError={(e) => {
+                  // Fallback to a dark gradient if the thumbnail fails
+                  const el = e.currentTarget as HTMLImageElement;
+                  el.style.display = "none";
+                }}
+              />
+            ) : null}
+            {!thumbnail && (
+              <div className="absolute inset-0 bg-gradient-to-br from-red-700 via-red-900 to-black" />
+            )}
+            {/* Dark overlay for legibility */}
+            <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors" />
+
+            {/* Play button */}
+            <span className="relative z-10 inline-flex items-center justify-center h-14 w-14 sm:h-16 sm:w-16 rounded-full bg-red-600 text-white shadow-lg shadow-black/40 group-hover:scale-110 group-active:scale-95 transition-transform">
+              <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 ml-1" fill="currentColor" aria-hidden="true">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </span>
+
+            {isPlaylist && (
+              <span className="absolute top-2 left-2 z-10 rounded bg-black/70 text-white text-[10px] px-2 py-0.5 font-medium">
+                Playlist
+              </span>
+            )}
+            <span className="absolute bottom-2 right-2 z-10 rounded bg-black/70 text-white text-[10px] px-2 py-0.5">
+              Click to load
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );
@@ -217,6 +378,9 @@ function TwitterEmbed({ info }: { info: EmbedInfo }) {
 }
 
 function CustomEmbed({ info }: { info: EmbedInfo }) {
+  // Some URLs refuse to be iframed (X-Frame-Options / CSP). Render an
+  // iframe attempt but also provide an "Open in new tab" fallback link so
+  // the user is never left with a blank box.
   return (
     <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm">
       <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-xs font-medium">
@@ -226,8 +390,16 @@ function CustomEmbed({ info }: { info: EmbedInfo }) {
           <line x1="12" y1="17" x2="12" y2="21" />
         </svg>
         <span>{info.title || "Embedded Content"}</span>
+        <a
+          href={info.url}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto opacity-70 hover:opacity-100 text-[10px] underline-offset-2 hover:underline truncate max-w-[200px]"
+        >
+          open ↗
+        </a>
       </div>
-      <div className="relative w-full" style={info.aspectRatio ? { paddingBottom: "56.25%" } : { height: "400px" }}>
+      <div className="relative w-full bg-muted" style={info.aspectRatio ? { paddingBottom: "56.25%" } : { height: "400px" }}>
         <iframe
           src={info.embedUrl}
           title={info.title || "Embed"}
@@ -237,6 +409,74 @@ function CustomEmbed({ info }: { info: EmbedInfo }) {
           loading="lazy"
           sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
         />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Feature #16: render an uploaded asset stored as a base64 data URL.
+ *
+ * - `data:image/*` → render as an <img> (with download link).
+ * - `data:video/*` → render as a <video controls> (with download link).
+ *
+ * These are produced by the "Custom Embed" uploader in the blog admin
+ * (FileReader.readAsDataURL on the client). They live in the `embeds` field
+ * alongside regular embed URLs.
+ */
+function DataUrlEmbed({ info }: { info: EmbedInfo }) {
+  const kind = info.dataKind;
+  const mime = info.dataMime || (kind === "video" ? "video/mp4" : "image/png");
+
+  // Derive a friendly file extension for the download link
+  const ext = mime.split("/")[1]?.split("+")[0] || (kind === "video" ? "mp4" : "png");
+  const fileName = `${kind === "video" ? "uploaded-video" : "uploaded-image"}.${ext}`;
+
+  return (
+    <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm">
+      <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium">
+        {kind === "video" ? (
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+            <polygon points="23 7 16 12 23 17 23 7" />
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <polyline points="21 15 16 10 5 21" />
+          </svg>
+        )}
+        <span className="capitalize">{kind === "video" ? "Uploaded Video" : "Uploaded Image"}</span>
+        <a
+          href={info.url}
+          download={fileName}
+          className="ml-auto opacity-70 hover:opacity-100 text-[10px] underline-offset-2 hover:underline"
+        >
+          download ↓
+        </a>
+      </div>
+      <div className="p-2 bg-gray-50 dark:bg-gray-950/30">
+        {kind === "image" ? (
+          <img
+            src={info.url}
+            alt={info.title || "Uploaded image"}
+            className="w-full h-auto rounded-lg object-contain max-h-[600px] mx-auto"
+            loading="lazy"
+          />
+        ) : (
+          <video
+            src={info.url}
+            controls
+            preload="metadata"
+            className="w-full h-auto rounded-lg max-h-[600px] mx-auto"
+          >
+            Your browser does not support the video tag.{" "}
+            <a href={info.url} download={fileName} className="text-emerald-600 underline">
+              Download the video instead.
+            </a>
+          </video>
+        )}
       </div>
     </div>
   );
@@ -254,6 +494,7 @@ export function EmbedRenderer({ url, title, className }: { url: string; title?: 
       {info.type === "spotify" && <SpotifyEmbed info={info} />}
       {info.type === "twitter" && <TwitterEmbed info={info} />}
       {info.type === "custom" && <CustomEmbed info={info} />}
+      {info.type === "data" && <DataUrlEmbed info={info} />}
     </div>
   );
 }
@@ -273,7 +514,7 @@ export function EmbedList({ urls, className }: { urls: string; className?: strin
   return (
     <div className={className || "space-y-4 my-4"}>
       {urlList.map((url, i) => (
-        <EmbedRenderer key={i} url={url} />
+        <EmbedRenderer key={`${i}-${url}`} url={url} />
       ))}
     </div>
   );
@@ -307,6 +548,7 @@ export function ContentWithEmbeds({
               {embed.type === "spotify" && <SpotifyEmbed info={embed} />}
               {embed.type === "twitter" && <TwitterEmbed info={embed} />}
               {embed.type === "custom" && <CustomEmbed info={embed} />}
+              {embed.type === "data" && <DataUrlEmbed info={embed} />}
             </div>
           ))}
         </div>
@@ -321,7 +563,7 @@ export function EmbedUrlInput({
   value,
   onChange,
   label = "Embed URLs",
-  description = "One URL per line. Supports: YouTube, Spotify, Twitter/X, or any iframe-able URL.",
+  description = "One URL per line. Supports: YouTube (videos, shorts, playlists), Spotify, Twitter/X, or any iframe-able URL.",
 }: {
   value: string;
   onChange: (val: string) => void;
@@ -348,7 +590,7 @@ export function EmbedUrlInput({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onBlur={handleBlur}
-        placeholder={"https://youtube.com/watch?v=...\nhttps://open.spotify.com/track/...\nhttps://x.com/user/status/..."}
+        placeholder={"https://youtube.com/watch?v=...\nhttps://youtube.com/playlist?list=...\nhttps://open.spotify.com/track/...\nhttps://x.com/user/status/..."}
         rows={3}
         className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white font-mono placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
       />
@@ -365,7 +607,9 @@ export function EmbedUrlInput({
                     {info.type === "spotify" && <SpotifyIcon />}
                     {info.type === "twitter" && <TwitterIcon />}
                     {info.type === "custom" && <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2" /></svg>}
-                    <span className="text-green-600 dark:text-green-400 font-medium capitalize">{info.type}</span>
+                    <span className="text-green-600 dark:text-green-400 font-medium capitalize">
+                      {info.type}{info.isPlaylist ? " · playlist" : info.videoId ? " · video" : ""}
+                    </span>
                     <span className="text-gray-400 truncate flex-1">{url}</span>
                   </>
                 ) : (

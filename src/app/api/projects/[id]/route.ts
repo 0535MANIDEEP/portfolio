@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateSlug } from '@/lib/slug'
+import { logOperation, logError } from '@/lib/log-operation'
 
 export async function GET(
   _request: NextRequest,
@@ -25,6 +26,29 @@ export async function GET(
       { status: 500 }
     )
   }
+}
+
+/** Normalize a JSON-array-like field to a JSON string. Falls back to default. */
+function normalizeJsonArrayField(
+  value: unknown,
+  defaultValue = '[]'
+): string {
+  if (value == null || value === '') return defaultValue
+  if (typeof value === 'string') {
+    try {
+      JSON.parse(value)
+      return value
+    } catch {
+      return defaultValue
+    }
+  }
+  if (Array.isArray(value)) {
+    return JSON.stringify(value)
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value)
+  }
+  return defaultValue
 }
 
 export async function PUT(
@@ -54,12 +78,24 @@ export async function PUT(
       delete data.slug
     }
 
-    // Handle JSON string fields
-    if (body.stack && typeof body.stack === 'object') {
-      data.stack = JSON.stringify(body.stack)
+    // Handle JSON string fields — accept either an array or a JSON string
+    if (body.stack !== undefined) {
+      data.stack = normalizeJsonArrayField(body.stack, '[]')
     }
-    if (body.screenshots && typeof body.screenshots === 'object') {
-      data.screenshots = JSON.stringify(body.screenshots)
+    if (body.screenshots !== undefined) {
+      data.screenshots = normalizeJsonArrayField(body.screenshots, '[]')
+    }
+    if (body.architectureDiagrams !== undefined) {
+      data.architectureDiagrams = normalizeJsonArrayField(body.architectureDiagrams, '[]')
+    }
+    if (body.contributors !== undefined) {
+      data.contributors = normalizeJsonArrayField(body.contributors, '[]')
+    }
+    if (body.embeds !== undefined) {
+      data.embeds = normalizeJsonArrayField(body.embeds, '[]')
+    }
+    if (body.showTeam !== undefined) {
+      data.showTeam = Boolean(body.showTeam)
     }
 
     const project = await db.project.update({
@@ -67,9 +103,21 @@ export async function PUT(
       data,
     })
 
+    await logOperation({
+      action: 'project.update',
+      entityType: 'project',
+      entityId: project.id,
+      details: JSON.stringify({
+        title: project.title,
+        slug: project.slug,
+        fields: Object.keys(body),
+      }),
+    })
+
     return NextResponse.json(project)
   } catch (error) {
     console.error('Update project error:', error)
+    await logError('project.update', error, { entityType: 'project' })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -93,9 +141,17 @@ export async function DELETE(
 
     await db.project.delete({ where: { id } })
 
+    await logOperation({
+      action: 'project.delete',
+      entityType: 'project',
+      entityId: id,
+      details: JSON.stringify({ title: existing.title, slug: existing.slug }),
+    })
+
     return NextResponse.json({ success: true })
   } catch (error) {
     console.error('Delete project error:', error)
+    await logError('project.delete', error, { entityType: 'project', entityId: id })
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

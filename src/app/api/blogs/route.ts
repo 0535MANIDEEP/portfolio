@@ -1,10 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { generateSlug } from '@/lib/slug'
+import { logOperation, logError } from '@/lib/log-operation'
+
+/**
+ * Coerce a resourceLinks payload into a JSON string.
+ * Accepts: a JS array of {label,url,description}, a JSON string, or undefined.
+ * Always returns a string (default "[]").
+ */
+function normalizeResourceLinks(raw: unknown): string {
+  if (raw == null) return '[]'
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim()
+    if (!trimmed) return '[]'
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (Array.isArray(parsed)) return JSON.stringify(parsed)
+    } catch {
+      return '[]'
+    }
+    return '[]'
+  }
+  if (Array.isArray(raw)) {
+    try {
+      return JSON.stringify(raw)
+    } catch {
+      return '[]'
+    }
+  }
+  return '[]'
+}
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
+    const slug = searchParams.get('slug')
     const published = searchParams.get('published')
     const type = searchParams.get('type')
     const search = searchParams.get('search')
@@ -20,6 +50,15 @@ export async function GET(request: NextRequest) {
       },
       data: { published: true },
     })
+
+    // Feature #17: single-blog lookup by slug (used by course chapter linking)
+    if (slug) {
+      const blog = await db.blogPost.findUnique({ where: { slug } })
+      if (!blog) {
+        return NextResponse.json({ error: 'Blog not found' }, { status: 404 })
+      }
+      return NextResponse.json(blog)
+    }
 
     const where: Record<string, unknown> = {}
 
@@ -87,6 +126,8 @@ export async function POST(request: NextRequest) {
         category: body.category ?? '',
         type: body.type ?? 'article',
         embedUrl: body.embedUrl ?? '',
+        embeds: body.embeds ?? '',
+        resourceLinks: normalizeResourceLinks(body.resourceLinks),
         writtenBy: body.writtenBy ?? '',
         acceptedBy: body.acceptedBy ?? '',
         published: body.published ?? false,
@@ -94,8 +135,16 @@ export async function POST(request: NextRequest) {
       },
     })
 
+    await logOperation({
+      action: 'blog.create',
+      entityType: 'blog',
+      entityId: blog.id,
+      details: `Created blog "${blog.title}" (slug: ${blog.slug})`,
+    })
+
     return NextResponse.json(blog, { status: 201 })
   } catch (error) {
+    await logError('blog.create', error, { entityType: 'blog' })
     console.error('Create blog error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },

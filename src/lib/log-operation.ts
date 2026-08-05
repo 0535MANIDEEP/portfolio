@@ -35,3 +35,35 @@ export async function logOperation(data: {
     console.error('Failed to log operation:', error)
   }
 }
+
+/**
+ * Log a failed operation / error. Captures the error message and stack in details.
+ */
+export async function logError(
+  action: string,
+  error: unknown,
+  context?: {
+    entityType?: string
+    entityId?: string
+    actor?: string
+    details?: string
+  }
+) {
+  const errMsg = error instanceof Error
+    ? `${error.name}: ${error.message}`
+    : String(error)
+  const stack = error instanceof Error ? error.stack : ''
+  const details = [
+    context?.details ? context.details : '',
+    `ERROR: ${errMsg}`,
+    stack ? `\nSTACK:\n${stack}` : '',
+  ].filter(Boolean).join('\n')
+
+  return logOperation({
+    action: `error:${action}`,
+    entityType: context?.entityType || 'system',
+    entityId: context?.entityId || '',
+    details,
+    actor: context?.actor || 'system',
+  })
+}

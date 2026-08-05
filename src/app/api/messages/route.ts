@@ -1,8 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { logOperation } from '@/lib/log-operation'
 
-export async function GET() {
+/**
+ * GET /api/messages
+ * Optional query params:
+ *   - retentionDays: number (default 90). Messages older than this many days are auto-deleted before the list is returned.
+ *
+ * Feature #18: Auto-cleanup of messages older than the retention window. Logs the deletion count.
+ */
+export async function GET(request: NextRequest) {
   try {
+    // --- Auto-cleanup of old messages -------------------------------------
+    const retentionParam = request.nextUrl.searchParams.get('retentionDays')
+    const retentionDays = Math.max(
+      1,
+      Number.isFinite(Number(retentionParam)) && retentionParam
+        ? parseInt(retentionParam, 10)
+        : 90
+    )
+    const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+
+    let deletedCount = 0
+    try {
+      const result = await db.contactMessage.deleteMany({
+        where: { createdAt: { lt: cutoff } },
+      })
+      deletedCount = result.count
+      if (deletedCount > 0) {
+        console.log(
+          `[messages] Auto-cleanup: deleted ${deletedCount} message(s) older than ${retentionDays} day(s).`
+        )
+        await logOperation({
+          action: 'message.auto_cleanup',
+          entityType: 'ContactMessage',
+          details: `Auto-deleted ${deletedCount} message(s) older than ${retentionDays} day(s) (cutoff ${cutoff.toISOString()}).`,
+        })
+      }
+    } catch (cleanupErr) {
+      // Cleanup is best-effort — never block the list response on it.
+      console.error('[messages] Auto-cleanup failed:', cleanupErr)
+    }
+
+    // --- Return remaining messages ---------------------------------------
     const messages = await db.contactMessage.findMany({
       orderBy: { createdAt: 'desc' },
     })
@@ -17,6 +57,11 @@ export async function GET() {
   }
 }
 
+/**
+ * PUT /api/messages
+ * Body: { id: string, read?: boolean, replied?: boolean, replyNote?: string }
+ * Legacy bulk-update endpoint — kept for backwards compatibility. Prefer PATCH /api/messages/[id].
+ */
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
@@ -39,9 +84,22 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    const data: {
+      read?: boolean
+      replied?: boolean
+      repliedAt?: Date | null
+      replyNote?: string
+    } = {}
+    if (typeof body.read === 'boolean') data.read = body.read
+    if (typeof body.replied === 'boolean') {
+      data.replied = body.replied
+      data.repliedAt = body.replied ? new Date() : null
+    }
+    if (typeof body.replyNote === 'string') data.replyNote = body.replyNote
+
     const message = await db.contactMessage.update({
       where: { id: body.id },
-      data: { read: body.read ?? true },
+      data,
     })
 
     return NextResponse.json(message)
@@ -54,12 +112,53 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// FIX: Add DELETE handler for messages
+/**
+ * DELETE /api/messages
+ *
+ * Single-message delete:
+ *   Body: { id: string }
+ *
+ * Bulk "delete all read messages" (Feature #18):
+ *   Body: { bulk: 'read' }
+ *
+ * Bulk delete by ids:
+ *   Body: { ids: string[] }
+ */
 export async function DELETE(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body = await request.json().catch(() => ({}))
 
-    if (!body.id) {
+    // --- Bulk: delete all read messages ---------------------------------
+    if (body?.bulk === 'read') {
+      const result = await db.contactMessage.deleteMany({
+        where: { read: true },
+      })
+      await logOperation({
+        action: 'message.bulk_delete_read',
+        entityType: 'ContactMessage',
+        details: `Bulk-deleted ${result.count} read message(s).`,
+      })
+      console.log(
+        `[messages] Bulk delete read: removed ${result.count} message(s).`
+      )
+      return NextResponse.json({ success: true, deletedCount: result.count })
+    }
+
+    // --- Bulk: delete by ids --------------------------------------------
+    if (Array.isArray(body?.ids) && body.ids.length > 0) {
+      const result = await db.contactMessage.deleteMany({
+        where: { id: { in: body.ids } },
+      })
+      await logOperation({
+        action: 'message.bulk_delete',
+        entityType: 'ContactMessage',
+        details: `Bulk-deleted ${result.count} message(s) by id.`,
+      })
+      return NextResponse.json({ success: true, deletedCount: result.count })
+    }
+
+    // --- Single delete --------------------------------------------------
+    if (!body?.id) {
       return NextResponse.json(
         { error: 'Message ID is required' },
         { status: 400 }
@@ -79,6 +178,13 @@ export async function DELETE(request: NextRequest) {
 
     await db.contactMessage.delete({
       where: { id: body.id },
+    })
+
+    await logOperation({
+      action: 'message.delete',
+      entityType: 'ContactMessage',
+      entityId: body.id,
+      details: `Deleted message from "${existing.name}" <${existing.email}> — subject: "${existing.subject || '(none)'}".`,
     })
 
     return NextResponse.json({ success: true })

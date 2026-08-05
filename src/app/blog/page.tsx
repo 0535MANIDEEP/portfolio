@@ -5,7 +5,8 @@ import { motion } from 'framer-motion'
 import { Search, X, FileText, Play, Music, MessageCircle } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { Navbar, Footer } from '@/components/site/navbar'
+import { Navbar, Footer } from "@/components/site/navbar"
+import { PageTransition } from "@/components/site/page-transition"
 import { BlogCard, LoadingCards } from '@/components/site/cards'
 
 interface Blog { id: string; title: string; slug: string; excerpt: string; coverImage: string; tags: string; category: string; type: string; embedUrl: string; published: boolean; createdAt: string; writtenBy: string; acceptedBy: string }
@@ -21,7 +22,7 @@ export default function BlogPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
 
   useEffect(() => {
-    fetch('/api/blogs?published=true').then(r => r.json()).then(data => { setBlogs(data); setLoading(false) }).catch(() => setLoading(false))
+    fetch('/api/blogs?published=true').then(r => r.json()).then(data => { setBlogs(Array.isArray(data) ? data : []); setLoading(false) }).catch(() => setLoading(false))
   }, [])
 
   const allCategories = useMemo(() => {
@@ -65,7 +66,7 @@ export default function BlogPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
-      <main className="flex-1 py-20 px-4">
+      <main id="main-content" className="flex-1 py-20 px-4">
         <div className="mx-auto max-w-6xl">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
             <h1 className="text-3xl font-bold sm:text-4xl">Blog</h1>

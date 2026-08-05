@@ -5,10 +5,39 @@ import { motion } from "framer-motion";
 import {
   FileText, FolderKanban, GraduationCap, Code2, Mail, MessageSquare,
   Eye, TrendingUp, Clock, AlertCircle, Users, Database, ArrowUpRight,
-  BarChart3, Activity, Zap, CheckCircle2, XCircle,
+  BarChart3, Activity, Zap, CheckCircle2, XCircle, Info,
   Plus, Pencil, Trash2, LogIn, LogOut,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ActivityChart } from "@/components/admin/activity-chart";
+import { ContentDistributionChart } from "@/components/admin/content-distribution-chart";
+import { ContentByTagChart } from "@/components/admin/content-by-tag-chart";
+import { ExportData } from "@/components/admin/export-data";
+
+// Info icon that reveals details on hover/click (replaces cluttered static text boxes)
+function InfoTip({ label, details }: { label: string; details: React.ReactNode }) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          onClick={(e) => e.stopPropagation()}
+          className="inline-flex items-center justify-center text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-300 transition-colors"
+          aria-label={`More info about ${label}`}
+        >
+          <Info className="w-3.5 h-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 text-xs" side="top">
+        <div className="space-y-1">
+          <p className="font-semibold text-foreground">{label}</p>
+          <div className="text-muted-foreground">{details}</div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface StatCard {
   label: string;
@@ -17,6 +46,7 @@ interface StatCard {
   color: string;
   trend?: string;
   href?: string;
+  description?: string;
 }
 
 interface RecentItem {
@@ -81,6 +111,8 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
   const [loading, setLoading] = useState(true);
   const [activityLog, setActivityLog] = useState<{ action: string; entity: string; time: string }[]>([]);
   const [timelineLogs, setTimelineLogs] = useState<TimelineLog[]>([]);
+  const [blogTags, setBlogTags] = useState<{ tags: string }[]>([]);
+  const [snippetTags, setSnippetTags] = useState<{ tags: string }[]>([]);
 
   const fetchDashboard = useCallback(async () => {
     try {
@@ -126,6 +158,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
           color: "text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30",
           trend: `${publishedBlogs} published`,
           href: "blogs",
+          description: `Total blog posts in the database. Approximately ${publishedBlogs} of ${blogCount} are published. Drafts and scheduled posts are excluded from the public site.`,
         },
         {
           label: "Projects",
@@ -134,6 +167,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
           color: "text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/30",
           trend: `${publishedProjects} published`,
           href: "projects",
+          description: `Portfolio projects including featured work. Each project can include architecture diagrams, ADRs, CI/CD snippets, and live demos.`,
         },
         {
           label: "Courses",
@@ -142,6 +176,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
           color: "text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30",
           trend: `${courseCount} total`,
           href: "courses",
+          description: `Structured learning paths. Each course contains chapters that can be custom content or linked from existing blogs/snippets.`,
         },
         {
           label: "Snippets",
@@ -150,6 +185,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
           color: "text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/30",
           trend: `${publishedSnippets} published`,
           href: "snippets",
+          description: `Reusable code snippets. Published snippets appear on the public site and can be included in RAG ingestion for the AI chatbot.`,
         },
         {
           label: "Messages",
@@ -157,6 +193,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
           icon: <Mail className="w-5 h-5" />,
           color: "text-pink-600 dark:text-pink-400 bg-pink-100 dark:bg-pink-900/30",
           href: "messages",
+          description: `Contact form submissions. Messages auto-delete after 90 days. Use reply shortcuts to respond via email and mark as replied.`,
         },
         {
           label: "Logs",
@@ -164,6 +201,7 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
           icon: <Activity className="w-5 h-5" />,
           color: "text-cyan-600 dark:text-cyan-400 bg-cyan-100 dark:bg-cyan-900/30",
           href: "logs",
+          description: `Operation logs capture all create/update/delete actions, auth events, and errors. The log retains the most recent 1000 entries.`,
         },
       ]);
 
@@ -199,13 +237,38 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
         } catch {}
       }
 
-      // Fetch recent items (blogs for now)
+      // Fetch recent items (blogs)
       if (blogsRes.status === "fulfilled") {
         try {
-          const bText = await blogsRes.value.clone().text();
-          // Already consumed body, use snippets for recent items
+          const bData = await blogsRes.value.clone().json();
+          const blogsArray = Array.isArray(bData) ? bData : [];
+          const recent: RecentItem[] = blogsArray.slice(0, 5).map((b: { id: string; title: string; published: boolean; updatedAt: string; slug: string }) => ({
+            id: b.id,
+            title: b.title,
+            type: "blog",
+            status: b.published ? "Published" : "Draft",
+            date: getRelativeTime(b.updatedAt),
+            href: "blogs",
+          }));
+          setRecentItems(recent);
         } catch {}
       }
+
+      // Fetch full blog + snippet lists for tag distribution chart
+      try {
+        const [fullBlogsRes, fullSnippetsRes] = await Promise.all([
+          fetch("/api/blogs"),
+          fetch("/api/snippets"),
+        ]);
+        if (fullBlogsRes.ok) {
+          const bd = await fullBlogsRes.json();
+          setBlogTags(Array.isArray(bd) ? bd.map((b: { tags?: string }) => ({ tags: b.tags || "" })) : []);
+        }
+        if (fullSnippetsRes.ok) {
+          const sd = await fullSnippetsRes.json();
+          setSnippetTags(Array.isArray(sd) ? sd.map((s: { tags?: string }) => ({ tags: s.tags || "" })) : []);
+        }
+      } catch {}
 
       setHealth({
         status: "healthy",
@@ -224,6 +287,26 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
 
   return (
     <div className="space-y-6">
+      {/* Dashboard header with export */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Overview of your portfolio content & activity</p>
+        </div>
+        <ExportData
+          filename={`dashboard-export-${new Date().toISOString().slice(0, 10)}`}
+          data={{
+            stats,
+            recentItems,
+            health,
+            activityLog,
+            timelineLogs: timelineLogs.slice(0, 20),
+            exportedAt: new Date().toISOString(),
+          }}
+          label="Export"
+        />
+      </div>
+
       {/* Quick Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {stats.map((stat, i) => (
@@ -247,7 +330,10 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
                 stat.value
               )}
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{stat.label}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-1">
+              {stat.label}
+              {stat.description && <InfoTip label={stat.label} details={stat.description} />}
+            </div>
             {stat.trend && (
               <div className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{stat.trend}</div>
             )}
@@ -318,8 +404,17 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
           </div>
         </div>
 
+        {/* Content Distribution */}
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="w-4 h-4 text-cyan-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Content Distribution</h3>
+          </div>
+          <ContentDistributionChart stats={stats} />
+        </div>
+
         {/* Recent Activity */}
-        <div className="lg:col-span-2 rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
+        <div className="lg:col-span-1 rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-500" />
@@ -366,13 +461,22 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
         </div>
       </div>
 
-      {/* Content Overview */}
+      {/* Activity Chart + Content Overview */}
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
-        <div className="flex items-center gap-2 mb-4">
-          <BarChart3 className="w-4 h-4 text-purple-500" />
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Content Overview</h3>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-purple-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Activity (Last 7 Days)</h3>
+          </div>
+          <button
+            onClick={() => onNavigate("logs")}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+          >
+            View all logs
+          </button>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <ActivityChart logs={timelineLogs} />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
           {[
             { label: "Total Content", value: stats.reduce((a, s) => a + s.value, 0) - (stats[4]?.value || 0) - (stats[5]?.value || 0), icon: "📦" },
             { label: "Published", value: stats.slice(0, 4).reduce((a, s) => a + Math.floor(s.value * 0.8), 0), icon: "✅" },
@@ -469,6 +573,64 @@ export function AdminDashboard({ onNavigate }: { onNavigate: (section: string) =
                 );
               })}
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Content by Tag */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-pink-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Content by Tag</h3>
+          </div>
+          <span className="text-xs text-gray-400 dark:text-gray-500">Top 10 tags</span>
+        </div>
+        <ContentByTagChart blogs={blogTags} snippets={snippetTags} />
+      </div>
+
+      {/* Recently Updated Content */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-900">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-indigo-500" />
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Recently Updated Content</h3>
+          </div>
+          <button
+            onClick={() => onNavigate("blogs")}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+          >
+            Manage blogs
+          </button>
+        </div>
+        {recentItems.length === 0 ? (
+          <div className="text-center py-8">
+            <FileText className="w-8 h-8 mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+            <p className="text-sm text-gray-400">No content yet</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {recentItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => item.href && onNavigate(item.href)}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left group"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0" />
+                <span className="text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-0 truncate group-hover:text-foreground">
+                  {item.title}
+                </span>
+                <Badge
+                  variant={item.status === "Published" ? "default" : "secondary"}
+                  className="text-[10px] px-1.5 py-0 h-4 font-normal shrink-0"
+                >
+                  {item.status}
+                </Badge>
+                <span className="text-[11px] text-gray-400 dark:text-gray-500 shrink-0 w-16 text-right">
+                  {item.date}
+                </span>
+              </button>
+            ))}
           </div>
         )}
       </div>

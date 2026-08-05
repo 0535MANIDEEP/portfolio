@@ -698,7 +698,7 @@ useEffect(() => {
           CREATE / EDIT DIALOG
           ═══════════════════════════════════════════════════════ */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[90vh] overflow-y-auto w-[95%]">
           <DialogHeader>
             <DialogTitle className="text-lg">{selectedId ? "Edit Snippet" : "New Snippet"}</DialogTitle>
           </DialogHeader>

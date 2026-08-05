@@ -144,31 +144,27 @@ export function TableOfContents({ containerRef }: { containerRef: React.RefObjec
 
   const tocContent = (
     <nav aria-label="Table of contents">
-      <ul className="space-y-1">
-        {headings.map((h) => (
-          <li key={h.id}>
-            <button
-              onClick={() => handleClick(h.id)}
-              className={cn(
-                'block w-full text-left text-sm leading-relaxed transition-colors hover:text-foreground',
-                h.level === 3 ? 'pl-4' : 'pl-0',
-                activeId === h.id
-                  ? 'text-primary font-medium'
-                  : 'text-muted-foreground'
-              )}
-              aria-current={activeId === h.id ? 'true' : undefined}
-            >
-              <span
+      <ul className="space-y-0.5">
+        {headings.map((h) => {
+          const isActive = activeId === h.id
+          return (
+            <li key={h.id}>
+              <button
+                onClick={() => handleClick(h.id)}
                 className={cn(
-                  'inline-block transition-transform',
-                  h.level === 3 && 'before:mr-1.5 before:content-[""] before:inline-block before:w-1 before:h-1 before:rounded-full before:bg-current before:align-middle'
+                  'block w-full text-left text-sm leading-relaxed transition-all hover:text-foreground border-l-2',
+                  h.level === 3 ? 'pl-4' : 'pl-3',
+                  isActive
+                    ? 'text-primary font-medium border-primary bg-primary/5'
+                    : 'text-muted-foreground border-transparent hover:border-border'
                 )}
+                aria-current={isActive ? 'true' : undefined}
               >
                 {h.text}
-              </span>
-            </button>
-          </li>
-        ))}
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </nav>
   )

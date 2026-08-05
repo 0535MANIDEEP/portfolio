@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback } from 'react'
-import { Twitter, Linkedin, Link2, Check } from 'lucide-react'
+import { Twitter, Linkedin, Facebook, Link2, Check, Share2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Tooltip,
@@ -45,13 +45,21 @@ export function ShareButtons() {
     )
   }, [getUrl])
 
+  const handleFacebook = useCallback(() => {
+    const url = encodeURIComponent(getUrl())
+    window.open(
+      `https://www.facebook.com/sharer/sharer.php?u=${url}`,
+      '_blank',
+      'noopener,noreferrer,width=600,height=400'
+    )
+  }, [getUrl])
+
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(getUrl())
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback
       const textarea = document.createElement('textarea')
       textarea.value = getUrl()
       textarea.style.position = 'fixed'
@@ -65,8 +73,23 @@ export function ShareButtons() {
     }
   }, [getUrl])
 
+  const handleNativeShare = useCallback(async () => {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: getTitle(),
+          url: getUrl(),
+        })
+      } catch {
+        // User cancelled — no action needed
+      }
+    }
+  }, [getUrl, getTitle])
+
+  const nativeShareAvailable = typeof navigator !== 'undefined' && !!navigator.share
+
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-2 flex-wrap">
       <span className="text-sm text-muted-foreground mr-1">Share:</span>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -102,6 +125,20 @@ export function ShareButtons() {
             variant="outline"
             size="icon"
             className="h-8 w-8"
+            onClick={handleFacebook}
+            aria-label="Share on Facebook"
+          >
+            <Facebook className="h-3.5 w-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Share on Facebook</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
             onClick={handleCopy}
             aria-label="Copy link"
           >
@@ -114,6 +151,23 @@ export function ShareButtons() {
         </TooltipTrigger>
         <TooltipContent>{copied ? 'Copied!' : 'Copy link'}</TooltipContent>
       </Tooltip>
+      {nativeShareAvailable && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="default"
+              size="sm"
+              className="h-8 gap-1.5"
+              onClick={handleNativeShare}
+              aria-label="Share via device"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Share</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Share via device</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   )
 }
