@@ -60,7 +60,7 @@ export const portfolio = {
       summary:
         "A self-hosted API uptime monitoring tool that periodically checks endpoint health and displays status on a real-time dashboard.",
       github: "https://github.com/0535MANIDEEP/devpulse",
-      live: "https://devpulse-client-8f9bc452m-manideep-darams-projects.vercel.app",
+      live: "https://devpulse-app-sable.vercel.app",
       stack: [
         "React",
         "TypeScript",
@@ -90,7 +90,7 @@ export const portfolio = {
       summary:
         "A mini e-commerce order management system with inventory reservation, idempotent order creation, and an admin dashboard.",
       github: "https://github.com/0535MANIDEEP/orderflow",
-      live: "https://client-hdmguq5gm-manideep-darams-projects.vercel.app",
+      live: "https://orderflow-app-one.vercel.app",
       stack: [
         "React",
         "TypeScript",
