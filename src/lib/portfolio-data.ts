@@ -116,13 +116,13 @@ function buildPortfolioData(rows: SectionRow[]): PortfolioData {
     projects: {
       items: Array.isArray(projects.items)
         ? (projects.items as unknown as Project[])
-        : (fb.projects.items as Project[]),
+        : (fb.projects.items as unknown as Project[]),
       additionalWork: (projects.additionalWork as AdditionalWork) ?? fb.projects.additionalWork,
     },
     experience: {
       items: Array.isArray(experience.items)
         ? (experience.items as unknown as ExperienceItem[])
-        : (fb.experience.items as ExperienceItem[]),
+        : (fb.experience.items as unknown as ExperienceItem[]),
     },
     education: {
       degree: assertString(education.degree, fb.education.degree),
@@ -136,7 +136,7 @@ function buildPortfolioData(rows: SectionRow[]): PortfolioData {
     navigation: {
       links: Array.isArray(navigation.links)
         ? (navigation.links as unknown as NavLink[])
-        : (fb.navigation.links as NavLink[]),
+        : (fb.navigation.links as unknown as NavLink[]),
     },
     contact: {
       heading: assertString(contact.heading, fb.contact.heading),

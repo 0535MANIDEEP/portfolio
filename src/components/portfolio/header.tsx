@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 interface HeaderProps {
@@ -18,9 +19,9 @@ export function Header({ name, navLinks, resumeLabel, resumeUrl }: HeaderProps) 
         className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:px-6"
         aria-label="Main navigation"
       >
-        <a href="/" className="text-sm font-semibold tracking-tight text-[#1c1917]">
+        <Link href="/" aria-label="Home" className="text-sm font-semibold tracking-tight text-[#1c1917]">
           {name}
-        </a>
+        </Link>
 
         <div className="hidden md:flex items-center gap-1">
           {navLinks.map((link) => (

@@ -7,7 +7,7 @@ import { About } from "@/components/portfolio/about";
 import { Contact } from "@/components/portfolio/contact";
 import { Footer } from "@/components/portfolio/footer";
 
-export const revalidate = 0;
+export const revalidate = 60;
 
 export default async function Home() {
   const portfolio = await getPortfolio();

@@ -2,7 +2,7 @@
 
 Personal portfolio website for **Manideep Daram**, Frontend & Full-Stack Developer based in Hyderabad.
 
-Built with **Next.js 16**, **React 19**, **TypeScript**, **Tailwind CSS 4**, and **Supabase** (Postgres). Content is managed through a built-in admin CMS — no redeploys needed to update projects, experience, or any section.
+Built with **Next.js 15**, **React 19**, **TypeScript**, **Tailwind CSS 4**, and **Supabase** (Postgres). Content is managed through a built-in admin CMS — no redeploys needed to update projects, experience, or any section.
 
 Live: [manideep-portfolio-navy.vercel.app](https://manideep-portfolio-navy.vercel.app)
 
@@ -24,9 +24,10 @@ Live: [manideep-portfolio-navy.vercel.app](https://manideep-portfolio-navy.verce
 
 | Layer | Technology |
 |-------|-----------|
-| Framework | Next.js 16 (App Router) |
+| Framework | Next.js 15 (App Router) |
 | UI | React 19, TypeScript, Tailwind CSS 4 |
 | Database | Supabase Postgres (JSONB per section) |
+| Validation | Zod |
 | Auth | Supabase Auth (admin login) |
 | Hosting | Vercel |
 
@@ -94,14 +95,17 @@ cp .env.example .env.local
 Fill in `.env.local`:
 
 ```env
+NEXT_PUBLIC_SITE_URL=https://your-portfolio.vercel.app
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
 
-Get these from your Supabase dashboard → **Settings → API**.
+Get the Supabase keys from your Supabase dashboard → **Settings → API**.
 
-> `SUPABASE_SERVICE_ROLE_KEY` is server-side only. It is never sent to the browser.
+Set `NEXT_PUBLIC_SITE_URL` to your deployed Vercel URL for proper SEO metadata.
+
+> ⚠️ `SUPABASE_SERVICE_ROLE_KEY` is server-side only. It is never sent to the browser.
 
 ### 3. Set up the database
 
@@ -237,8 +241,8 @@ One table: `portfolio_sections`
 Visit `/admin` and sign in with your Supabase Auth credentials.
 
 The dashboard has 7 tabs — one per section. Edit fields and press **Save** to upsert
-that section's row in Supabase. Changes are live on the public site immediately
-(the home page uses `revalidate = 0`).
+that section's row in Supabase. Changes appear on the public site within 60 seconds
+(the home page uses `revalidate = 60`).
 
 To create an admin account: Supabase dashboard → **Authentication → Users → Invite user**.
 
@@ -249,10 +253,9 @@ To create an admin account: Supabase dashboard → **Authentication → Users �
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/api/portfolio` | Returns all sections as `{ section: data, ... }` |
-| `POST` | `/api/portfolio` | Upserts one section. Body: `{ section: string, data: object }` |
-| `POST` | `/api/auth` | Signs in via Supabase Auth. Returns `access_token` and `user` |
+| `POST` | `/api/portfolio` | Upserts one section. Body: `{ section, data }`. Requires Bearer token. |
 
-All routes use the service role key server-side. The anon key is never used in API routes.
+All routes use the service role key server-side. The anon key is only used for client-side authentication.
 
 ---
 
@@ -260,6 +263,7 @@ All routes use the service role key server-side. The anon key is never used in A
 
 | Variable | Required | Description |
 |----------|----------|-------------|
+| `NEXT_PUBLIC_SITE_URL` | Yes | Your deployed site URL (used for SEO metadata) |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase anon key (used for client-side Auth) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Service role key — server-side only, bypasses RLS |

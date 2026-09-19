@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin, getSupabaseBrowser } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function GET() {
   try {
@@ -33,13 +33,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const anonClient = getSupabaseBrowser();
-    const { data: userData, error: userError } = await anonClient.auth.getUser(token);
+    const supabase = getSupabaseAdmin();
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
     if (userError || !userData.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const supabase = getSupabaseAdmin();
     const body = await req.json();
     const { section, data } = body as { section?: string; data?: unknown };
 
@@ -53,7 +51,7 @@ export async function POST(req: NextRequest) {
     const { error } = await supabase
       .from("portfolio_sections")
       .upsert(
-        { section, data, updated_at: new Date().toISOString() },
+        { section, data },
         { onConflict: "section" }
       );
 

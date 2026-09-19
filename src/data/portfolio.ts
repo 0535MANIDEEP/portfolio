@@ -48,7 +48,7 @@ export const portfolioFallback = {
           "Designed REST APIs and optimized MongoDB queries for document workflows.",
         ],
       },
-{
+      {
         role: "AI Data Engineering Contributor",
         company: "Viswam AI / Swecha Foundation (IIIT Hyderabad)",
         location: "Hyderabad",
