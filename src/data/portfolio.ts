@@ -101,11 +101,11 @@ export const portfolioFallback = {
       {
         name: "QueueForge",
         summary:
-          "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, and grow your business with a real-time dashboard. Free and open source — no subscriptions, no tiers (Stripe integration present but paywall disabled, all features included). Built with Next.js 15, Prisma, Supabase, NextAuth, Upstash Redis, Twilio, and Resend.",
+          "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, and grow your business with a real-time dashboard. Free and open source — no subscriptions, no tiers (Stripe integration present but paywall disabled, all features included). Built with Next.js 16, Prisma, Supabase, NextAuth, Upstash Redis, Twilio, and Resend.",
         github: "https://github.com/0535MANIDEEP/cutqueue",
         live: "https://queueforge-lake.vercel.app",
         stack: [
-          "Next.js 15",
+          "Next.js 16",
           "TypeScript",
           "Prisma 7",
           "PostgreSQL (Supabase)",
@@ -131,7 +131,7 @@ export const portfolioFallback = {
         ],
         engineering: [
           "Free and open source — no tiered pricing, all features included (Stripe present but not gating)",
-          "Next.js 15 App Router + React 19",
+          "Next.js 16 App Router + React 19",
           "Prisma 7 ORM with PostgreSQL on Supabase",
           "NextAuth v5 for authentication (credentials + JWT)",
           "Upstash Redis for rate limiting",
@@ -144,11 +144,11 @@ export const portfolioFallback = {
       {
         name: "SS Mart POS",
         summary:
-          "Offline-first Point of Sale and inventory management system for small retail shops. Runs entirely locally — no internet required, no subscription, no data leaving the premises. Built with Next.js 15, Express, Prisma, SQLite, Tauri v2 desktop wrapper, PWA, and ESC/POS thermal receipt printing.",
+          "Offline-first Point of Sale and inventory management system for small retail shops. Runs entirely locally — no internet required, no subscription, no data leaving the premises. Built with Next.js 16, Express, Prisma, SQLite, Tauri v2 desktop wrapper, PWA, and ESC/POS thermal receipt printing.",
         github: "https://github.com/0535MANIDEEP/ssmart-pos",
         live: null,
         stack: [
-          "Next.js 15 (App Router)",
+          "Next.js 16 (App Router)",
           "React 19",
           "TypeScript",
           "Tailwind CSS 4",

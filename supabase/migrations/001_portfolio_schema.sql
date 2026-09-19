@@ -91,10 +91,10 @@ insert into public.portfolio_sections (section, data) values
     },
     {
       "name": "QueueForge",
-      "summary": "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, and grow your business with a real-time dashboard. Free and open source — no subscriptions, no tiers (Stripe integration present but paywall disabled, all features included). Built with Next.js 15, Prisma, Supabase, NextAuth, Upstash Redis, Twilio, and Resend.",
+      "summary": "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, and grow your business with a real-time dashboard. Free and open source — no subscriptions, no tiers (Stripe integration present but paywall disabled, all features included). Built with Next.js 16, Prisma, Supabase, NextAuth, Upstash Redis, Twilio, and Resend.",
       "github": "https://github.com/0535MANIDEEP/cutqueue",
       "live": "https://queueforge-lake.vercel.app",
-      "stack": ["Next.js 15", "TypeScript", "Prisma 7", "PostgreSQL (Supabase)", "NextAuth v5", "Stripe (integration present, billing disabled)", "Upstash Redis (rate limiting)", "Resend (transactional email)", "Twilio (SMS notifications)", "n8n (automation workflows)", "Framer Motion", "Zod + React Hook Form"],
+      "stack": ["Next.js 16", "TypeScript", "Prisma 7", "PostgreSQL (Supabase)", "NextAuth v5", "Stripe (integration present, billing disabled)", "Upstash Redis (rate limiting)", "Resend (transactional email)", "Twilio (SMS notifications)", "n8n (automation workflows)", "Framer Motion", "Zod + React Hook Form"],
       "features": [
         "Real-time queue management — see who''s waiting, estimated wait times",
         "Online booking system — customers book slots, auto-accept or approve",
@@ -108,7 +108,7 @@ insert into public.portfolio_sections (section, data) values
       ],
       "engineering": [
         "Free and open source — no tiered pricing, all features included (Stripe present but not gating)",
-        "Next.js 15 App Router + React 19",
+        "Next.js 16 App Router + React 19",
         "Prisma 7 ORM with PostgreSQL on Supabase",
         "NextAuth v5 for authentication (credentials + JWT)",
         "Upstash Redis for rate limiting",
@@ -120,10 +120,10 @@ insert into public.portfolio_sections (section, data) values
     },
     {
       "name": "SS Mart POS",
-      "summary": "Offline-first Point of Sale and inventory management system for small retail shops. Runs entirely locally — no internet required, no subscription, no data leaving the premises. Built with Next.js 15, Express, Prisma, SQLite, Tauri v2 desktop wrapper, PWA, and ESC/POS thermal receipt printing.",
+      "summary": "Offline-first Point of Sale and inventory management system for small retail shops. Runs entirely locally — no internet required, no subscription, no data leaving the premises. Built with Next.js 16, Express, Prisma, SQLite, Tauri v2 desktop wrapper, PWA, and ESC/POS thermal receipt printing.",
       "github": "https://github.com/0535MANIDEEP/ssmart-pos",
       "live": null,
-      "stack": ["Next.js 15 (App Router)", "React 19", "TypeScript", "Tailwind CSS 4", "Express 5", "Prisma 7", "SQLite (better-sqlite3 driver)", "Tauri v2", "PWA", "ESC/POS thermal printing", "jsbarcode + qrcode", "recharts"],
+      "stack": ["Next.js 16 (App Router)", "React 19", "TypeScript", "Tailwind CSS 4", "Express 5", "Prisma 7", "SQLite (better-sqlite3 driver)", "Tauri v2", "PWA", "ESC/POS thermal printing", "jsbarcode + qrcode", "recharts"],
       "features": [
         "Offline-first — all operations work without internet",
         "Guided onboarding — first walk configures shop, currency, GST, loyalty",
