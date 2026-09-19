@@ -76,7 +76,7 @@ export function Work({ projects }: WorkProps) {
                     </svg>
                   </a>
                 )}
-<a href={project.github} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-md border border-[#e7e5e4] px-3.5 py-1.5 text-sm font-medium text-[#1c1917] hover:bg-[#f5f5f4] transition-colors">
+                <a href={project.github} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-md border border-[#e7e5e4] px-3.5 py-1.5 text-sm font-medium text-[#1c1917] hover:bg-[#f5f5f4] transition-colors">
                     View source
                     <svg className="ml-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
