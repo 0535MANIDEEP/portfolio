@@ -66,22 +66,23 @@ insert into public.portfolio_sections (section, data) values
   "items": [
     {
       "name": "SubHunt",
-      "summary": "Privacy-first subscription tracker for Android that helps users monitor recurring payments without any bank linking or cloud sync. All data stays on the device. Built with Kotlin, Jetpack Compose, Material 3, Hilt, Room, WorkManager, and RevenueCat for premium tiers.",
+      "summary": "Privacy-first subscription tracker for Android that helps users monitor recurring payments without any bank linking or cloud sync. All data stays on the device. Built with Kotlin, Jetpack Compose, Material 3, Hilt, Room, WorkManager, and RevenueCat for optional premium features.",
       "github": "https://github.com/0535MANIDEEP/SubHunt",
       "live": null,
       "stack": ["Kotlin", "Jetpack Compose", "Material 3", "Hilt", "Room", "WorkManager", "RevenueCat KMP", "AGP 9.0 + Gradle 9.1"],
       "features": [
-        "Track unlimited subscriptions (Free — no limits)",
+        "Track unlimited subscriptions with free core tier",
         "Smart dashboard with total monthly spending",
         "Bill reminders with customizable notification sounds",
         "Spending insights and health score (A-F)",
         "CSV and JSON data export",
         "Biometric or PIN app lock",
         "Material 3 UI with smooth animations",
-        "Home screen widget"
+        "Home screen widget",
+        "Optional premium tier via RevenueCat for advanced features"
       ],
       "engineering": [
-        "Made everything free — removed all paywalls and subscription limits",
+        "Free core tier with optional RevenueCat-powered premium tier",
         "MVVM + UDF architecture with Repository pattern",
         "Hilt for dependency injection",
         "Room SQLite for local-first data persistence",
