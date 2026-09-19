@@ -105,7 +105,7 @@ insert into public.portfolio_sections (section, data) values
       ],
       "engineering": [
         "Full SaaS platform with tiered pricing in INR",
-        "Next.js 16 App Router + React 19",
+        "Next.js 15 App Router + React 19",
         "Prisma 7 ORM with PostgreSQL on Supabase",
         "NextAuth v5 for authentication (credentials + JWT)",
         "Stripe Subscriptions with trial periods",
