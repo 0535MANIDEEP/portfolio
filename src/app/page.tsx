@@ -6,6 +6,7 @@ import { Experience } from "@/components/portfolio/experience";
 import { About } from "@/components/portfolio/about";
 import { Contact } from "@/components/portfolio/contact";
 import { Footer } from "@/components/portfolio/footer";
+import { ViewTracker } from "@/components/portfolio/view-tracker";
 
 export const revalidate = 60;
 
@@ -14,6 +15,7 @@ export default async function Home() {
 
   return (
     <>
+      <ViewTracker />
       <Header
         name={portfolio.profile.name}
         navLinks={portfolio.navigation.links}

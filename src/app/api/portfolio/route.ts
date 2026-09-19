@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function GET() {
@@ -58,6 +59,11 @@ export async function POST(req: NextRequest) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // audit: keep last 20 versions per section
+    await supabase.from("portfolio_versions").insert({ section, data });
+    // revalidate ISR cache (page.tsx revalidate 60)
+    revalidatePath("/");
 
     return NextResponse.json({ ok: true });
   } catch (err) {

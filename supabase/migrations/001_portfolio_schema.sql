@@ -39,6 +39,25 @@ alter table public.portfolio_sections enable row level security;
 -- The service role key bypasses RLS entirely.
 revoke all on public.portfolio_sections from anon, authenticated;
 
+-- ── Portfolio versions (audit) & views (analytics) ──────────────────────────
+create table if not exists public.portfolio_versions (
+  id         uuid primary key default gen_random_uuid(),
+  section    text not null,
+  data       jsonb not null,
+  created_at timestamptz not null default now()
+);
+create table if not exists public.portfolio_views (
+  id         uuid primary key default gen_random_uuid(),
+  path       text not null default '/',
+  viewed_at  timestamptz not null default now(),
+  ip_hash    text
+);
+alter table public.portfolio_versions enable row level security;
+alter table public.portfolio_views enable row level security;
+revoke all on public.portfolio_versions from anon, authenticated;
+revoke all on public.portfolio_views from anon, authenticated;
+-- service role bypasses RLS; optionally allow anon insert for views via API only
+
 -- ── Seed data ─────────────────────────────────────────────────────────────────
 -- Insert all 7 sections with realistic defaults.
 -- Re-running is safe — upsert on the primary key.
