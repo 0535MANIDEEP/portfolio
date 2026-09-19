@@ -101,11 +101,11 @@ export const portfolioFallback = {
       {
         name: "QueueForge",
         summary:
-          "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, process payments via Stripe, and grow your business with a real-time dashboard. Built with Next.js 16, Prisma, Supabase, Stripe, NextAuth, Upstash Redis, Twilio, and Resend.",
+          "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, process payments via Stripe, and grow your business with a real-time dashboard. Built with Next.js 15, Prisma, Supabase, Stripe, NextAuth, Upstash Redis, Twilio, and Resend.",
         github: "https://github.com/0535MANIDEEP/cutqueue",
         live: "https://cutqueue-amber.vercel.app",
         stack: [
-          "Next.js 16",
+          "Next.js 15",
           "TypeScript",
           "Prisma 7",
           "PostgreSQL (Supabase)",
@@ -132,7 +132,7 @@ export const portfolioFallback = {
         ],
         engineering: [
           "Full SaaS platform with tiered pricing in INR",
-          "Next.js 16 App Router + React 19",
+          "Next.js 15 App Router + React 19",
           "Prisma 7 ORM with PostgreSQL on Supabase",
           "NextAuth v5 for authentication (credentials + JWT)",
           "Stripe Subscriptions with trial periods",
@@ -146,7 +146,7 @@ export const portfolioFallback = {
       {
         name: "SS Mart POS",
         summary:
-          "Offline-first Point of Sale and inventory management system for small retail shops. Runs entirely locally — no internet required, no subscription, no data leaving the premises. Built with Next.js 16, Express, Prisma, SQLite, Tauri v2 desktop wrapper, PWA, and ESC/POS thermal receipt printing.",
+          "Offline-first Point of Sale and inventory management system for small retail shops. Runs entirely locally — no internet required, no subscription, no data leaving the premises. Built with Next.js 15, Express, Prisma, SQLite, Tauri v2 desktop wrapper, PWA, and ESC/POS thermal receipt printing.",
         github: "https://github.com/0535MANIDEEP/ssmart-pos",
         live: null,
         stack: [

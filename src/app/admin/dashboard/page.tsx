@@ -69,6 +69,16 @@ export default function AdminDashboard() {
     }));
   }
 
+  function updateAdditionalWork(field: string, value: unknown) {
+    setPortfolio((prev) => {
+      const current = ((prev.projects as Record<string, unknown>)?.additionalWork as Record<string, unknown>) ?? {};
+      return {
+        ...prev,
+        projects: { ...(prev.projects as Record<string, unknown>), additionalWork: { ...current, [field]: value } },
+      };
+    });
+  }
+
   function updateArrayItem(
     section: string,
     arrayField: string,
@@ -256,10 +266,10 @@ export default function AdminDashboard() {
             </button>
             <div className="mt-6 border-t border-[#e7e5e4] pt-4">
               <h3 className="text-sm font-semibold text-[#1c1917] mb-3">Additional Work</h3>
-              <Field label="Name" value={getNestedStr("projects", "additionalWork", "name")} onChange={(v) => { const aw = (portfolio.projects as SectionData)?.additionalWork as SectionData ?? {}; updateField("projects", "additionalWork", { ...aw, name: v }); }} />
-              <Field label="Subtitle" value={getNestedStr("projects", "additionalWork", "subtitle")} onChange={(v) => { const aw = (portfolio.projects as SectionData)?.additionalWork as SectionData ?? {}; updateField("projects", "additionalWork", { ...aw, subtitle: v }); }} />
-              <Field label="Description" value={getNestedStr("projects", "additionalWork", "description")} onChange={(v) => { const aw = (portfolio.projects as SectionData)?.additionalWork as SectionData ?? {}; updateField("projects", "additionalWork", { ...aw, description: v }); }} textarea />
-              <Field label="GitHub URL" value={getNestedStr("projects", "additionalWork", "github")} onChange={(v) => { const aw = (portfolio.projects as SectionData)?.additionalWork as SectionData ?? {}; updateField("projects", "additionalWork", { ...aw, github: v }); }} />
+              <Field label="Name" value={getNestedStr("projects", "additionalWork", "name")} onChange={(v) => updateAdditionalWork("name", v)} />
+              <Field label="Subtitle" value={getNestedStr("projects", "additionalWork", "subtitle")} onChange={(v) => updateAdditionalWork("subtitle", v)} />
+              <Field label="Description" value={getNestedStr("projects", "additionalWork", "description")} onChange={(v) => updateAdditionalWork("description", v)} textarea />
+              <Field label="GitHub URL" value={getNestedStr("projects", "additionalWork", "github")} onChange={(v) => updateAdditionalWork("github", v)} />
             </div>
           </Section>
         )}

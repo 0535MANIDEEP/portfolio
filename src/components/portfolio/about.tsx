@@ -10,7 +10,7 @@ interface AboutProps {
 }
 
 export function About({ about, coreStack, education }: AboutProps) {
-  const stackItems = coreStack.split(" · ");
+  const stackItems = coreStack.split(/[·•]/).map(s => s.trim()).filter(Boolean);
 
   return (
     <section id="about" className="py-16 sm:py-20 px-4 border-t border-[#e7e5e4]">

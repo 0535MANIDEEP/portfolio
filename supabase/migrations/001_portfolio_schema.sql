@@ -94,7 +94,7 @@ insert into public.portfolio_sections (section, data) values
       "summary": "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, process payments via Stripe, and grow your business with a real-time dashboard.",
       "github": "https://github.com/0535MANIDEEP/cutqueue",
       "live": "https://cutqueue-amber.vercel.app",
-      "stack": ["Next.js 16", "TypeScript", "Prisma 7", "PostgreSQL (Supabase)", "NextAuth v5", "Stripe", "Upstash Redis", "Resend", "Twilio", "Framer Motion", "Zod + React Hook Form"],
+      "stack": ["Next.js 15", "TypeScript", "Prisma 7", "PostgreSQL (Supabase)", "NextAuth v5", "Stripe", "Upstash Redis", "Resend", "Twilio", "Framer Motion", "Zod + React Hook Form"],
       "features": [
         "Real-time queue management — see who''s waiting, estimated wait times",
         "Online booking system — customers book slots, auto-accept or approve",

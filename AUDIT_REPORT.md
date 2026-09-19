@@ -83,8 +83,8 @@ I've completed a deep audit of your Next.js 15 portfolio with Supabase CMS. I id
 #### Issue 1: Version Claims (Lines 5, 27)
 **Current:**
 ```markdown
-Built with **Next.js 16**, **React 19**
-| Framework | Next.js 16 (App Router) |
+Built with **Next.js 15**, **React 19**
+| Framework | Next.js 15 (App Router) |
 ```
 
 **Required Fix:**
