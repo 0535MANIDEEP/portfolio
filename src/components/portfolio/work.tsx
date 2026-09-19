@@ -1,20 +1,24 @@
+interface Project {
+  name: string;
+  summary: string;
+  stack: string[];
+  live: string | null;
+  github: string;
+  features: string[];
+  engineering: string[];
+}
+
+interface AdditionalWork {
+  name: string;
+  subtitle: string;
+  description: string;
+  github: string;
+}
+
 interface WorkProps {
   projects: {
-    items: {
-      name: string;
-      summary: string;
-      stack: string[];
-      live: string;
-      github: string;
-      features: string[];
-      engineering: string[];
-    }[];
-    additionalWork: {
-      name: string;
-      subtitle: string;
-      description: string;
-      github: string;
-    };
+    items: Project[];
+    additionalWork: AdditionalWork;
   };
 }
 
@@ -23,7 +27,7 @@ export function Work({ projects }: WorkProps) {
     <section id="work" className="py-16 sm:py-20 px-4 border-t border-[#e7e5e4]">
       <div className="mx-auto max-w-3xl">
         <h2 className="text-2xl font-bold tracking-tight text-[#1c1917]">Selected work</h2>
-        <p className="mt-2 text-sm text-[#78716c]">Two deployed projects with source code available to review.</p>
+        <p className="mt-2 text-sm text-[#78716c]">{projects.items.length} projects with source code available to review.</p>
 
         <div className="mt-8 space-y-8">
           {projects.items.map((project) => (
@@ -64,18 +68,22 @@ export function Work({ projects }: WorkProps) {
               </div>
 
               <div className="mt-5 flex flex-wrap gap-3">
-                <a href={project.live} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-md bg-[#1c1917] px-3.5 py-1.5 text-sm font-medium text-[#fafaf9] hover:bg-[#44403c] transition-colors">
-                  Live demo
-                  <svg className="ml-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </a>
-                <a href={project.github} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-md border border-[#e7e5e4] px-3.5 py-1.5 text-sm font-medium text-[#1c1917] hover:bg-[#f5f5f4] transition-colors">
-                  View source
-                  <svg className="ml-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </a>
+                {project.live && (
+                  <a href={project.live} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-md bg-[#1c1917] px-3.5 py-1.5 text-sm font-medium text-[#fafaf9] hover:bg-[#44403c] transition-colors">
+                    Live demo
+                    <svg className="ml-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </a>
+                )}
+                {project.github && (
+                  <a href={project.github} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-md border border-[#e7e5e4] px-3.5 py-1.5 text-sm font-medium text-[#1c1917] hover:bg-[#f5f5f4] transition-colors">
+                    View source
+                    <svg className="ml-1.5 h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                    </svg>
+                  </a>
+                )}
               </div>
             </article>
           ))}

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
+import { getSupabaseClient } from "@/lib/supabase";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
@@ -16,7 +16,7 @@ export default function AdminLogin() {
     setLoading(true);
     setError("");
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { error: authError } = await getSupabaseClient().auth.signInWithPassword({
       email,
       password,
     });

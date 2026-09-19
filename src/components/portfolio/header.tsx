@@ -18,7 +18,7 @@ export function Header({ name, navLinks, resumeLabel, resumeUrl }: HeaderProps) 
         className="mx-auto flex h-14 max-w-3xl items-center justify-between px-4 sm:px-6"
         aria-label="Main navigation"
       >
-        <a href="#main-content" className="text-sm font-semibold tracking-tight text-[#1c1917]">
+        <a href="/" className="text-sm font-semibold tracking-tight text-[#1c1917]">
           {name}
         </a>
 
@@ -30,8 +30,6 @@ export function Header({ name, navLinks, resumeLabel, resumeUrl }: HeaderProps) 
           ))}
           <a
             href={resumeUrl}
-            target="_blank"
-            rel="noopener noreferrer"
             className="ml-2 inline-flex items-center rounded-md bg-[#1c1917] px-3 py-1.5 text-sm font-medium text-[#fafaf9] hover:bg-[#44403c] transition-colors"
           >
             {resumeLabel}
@@ -69,8 +67,6 @@ export function Header({ name, navLinks, resumeLabel, resumeUrl }: HeaderProps) 
             ))}
             <a
               href={resumeUrl}
-              target="_blank"
-              rel="noopener noreferrer"
               onClick={() => setMobileOpen(false)}
               className="block px-3 py-2 text-sm font-medium text-[#fafaf9] bg-[#1c1917] rounded-md text-center hover:bg-[#44403c] transition-colors"
             >
