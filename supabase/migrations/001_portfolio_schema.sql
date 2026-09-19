@@ -66,23 +66,22 @@ insert into public.portfolio_sections (section, data) values
   "items": [
     {
       "name": "SubHunt",
-      "summary": "Privacy-first subscription tracker for Android that helps users monitor recurring payments without any bank linking or cloud sync. All data stays on the device. Built with Kotlin, Jetpack Compose, Material 3, Hilt, Room, WorkManager, and RevenueCat for optional premium features.",
+      "summary": "Privacy-first subscription tracker for Android that helps users monitor recurring payments without any bank linking or cloud sync. All data stays on the device. Built with Kotlin, Jetpack Compose, Material 3, Hilt, Room, WorkManager, and RevenueCat KMP integrated (billing module present but paywall disabled — all features included free and open source).",
       "github": "https://github.com/0535MANIDEEP/SubHunt",
       "live": null,
-      "stack": ["Kotlin", "Jetpack Compose", "Material 3", "Hilt", "Room", "WorkManager", "RevenueCat KMP", "AGP 9.0 + Gradle 9.1"],
+      "stack": ["Kotlin", "Jetpack Compose", "Material 3", "Hilt", "Room", "WorkManager", "RevenueCat KMP (billing present, not enforced)", "AGP 9.0.1 + Gradle 9.1.0"],
       "features": [
-        "Track unlimited subscriptions with free core tier",
+        "Track unlimited subscriptions — free and open source, no paywalls",
         "Smart dashboard with total monthly spending",
         "Bill reminders with customizable notification sounds",
         "Spending insights and health score (A-F)",
         "CSV and JSON data export",
         "Biometric or PIN app lock",
         "Material 3 UI with smooth animations",
-        "Home screen widget",
-        "Optional premium tier via RevenueCat for advanced features"
+        "Home screen widget"
       ],
       "engineering": [
-        "Free core tier with optional RevenueCat-powered premium tier",
+        "Free and open source — no subscriptions, no paywalls (RevenueCat KMP present but disabled)",
         "MVVM + UDF architecture with Repository pattern",
         "Hilt for dependency injection",
         "Room SQLite for local-first data persistence",
@@ -92,28 +91,26 @@ insert into public.portfolio_sections (section, data) values
     },
     {
       "name": "QueueForge",
-      "summary": "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, process payments via Stripe, and grow your business with a real-time dashboard. Built with Next.js 15, Prisma, Supabase, Stripe, NextAuth, Upstash Redis, Twilio, and Resend.",
+      "summary": "Full-stack SaaS queue and booking platform for barbershops and salons. Manage walk-in queues, accept online bookings, and grow your business with a real-time dashboard. Free and open source — no subscriptions, no tiers (Stripe integration present but paywall disabled, all features included). Built with Next.js 15, Prisma, Supabase, NextAuth, Upstash Redis, Twilio, and Resend.",
       "github": "https://github.com/0535MANIDEEP/cutqueue",
-      "live": "https://cutqueue-amber.vercel.app",
-      "stack": ["Next.js 15", "TypeScript", "Prisma 7", "PostgreSQL (Supabase)", "NextAuth v5", "Stripe (subscriptions + payments)", "Upstash Redis (rate limiting)", "Resend (transactional email)", "Twilio (SMS notifications)", "n8n (automation workflows)", "Framer Motion", "Zod + React Hook Form"],
+      "live": "https://queueforge-lake.vercel.app",
+      "stack": ["Next.js 15", "TypeScript", "Prisma 7", "PostgreSQL (Supabase)", "NextAuth v5", "Stripe (integration present, billing disabled)", "Upstash Redis (rate limiting)", "Resend (transactional email)", "Twilio (SMS notifications)", "n8n (automation workflows)", "Framer Motion", "Zod + React Hook Form"],
       "features": [
         "Real-time queue management — see who''s waiting, estimated wait times",
         "Online booking system — customers book slots, auto-accept or approve",
         "Service & staff management — define services, assign staff, set availability",
         "Revenue analytics — daily/weekly/monthly revenue, top services, peak hours",
-        "Subscription billing — Stripe-powered plans (Free trial, Starter, Pro, Business)",
+        "Free and open source — no subscriptions, no tiers, all features included",
         "Customer CRM — history, repeat visit tracking, notes",
         "WhatsApp sharing — share queue status and booking confirmations",
-        "Multi-location support — manage multiple shop branches (Business plan)",
-        "90-day free trial — no credit card required",
+        "Multi-location support — manage multiple shop branches (all plans)",
         "Role-based access — Admin, Staff, Customer roles"
       ],
       "engineering": [
-        "Full SaaS platform with tiered pricing in INR",
+        "Free and open source — no tiered pricing, all features included (Stripe present but not gating)",
         "Next.js 15 App Router + React 19",
         "Prisma 7 ORM with PostgreSQL on Supabase",
         "NextAuth v5 for authentication (credentials + JWT)",
-        "Stripe Subscriptions with trial periods",
         "Upstash Redis for rate limiting",
         "Resend for transactional emails",
         "Twilio for SMS notifications",
@@ -196,9 +193,9 @@ insert into public.portfolio_sections (section, data) values
   ],
   "additionalWork": {
     "name": "Sutra-Code",
-    "subtitle": "Socratic Mentor for Programmers",
+    "subtitle": "Socratic AI Mentor for Indian Programmers",
     "github": "https://github.com/0535MANIDEEP/sutra-code",
-    "description": "A programming-learning project featuring TypeScript and React UI work, backend API integration, prompt management, secure API proxying, unit tests, and documentation."
+    "description": "Socratic AI mentor that teaches programming through guided questioning, not answers. React 18 + AWS CDK stack (Lambda, DynamoDB, Cognito, API Gateway, Bedrock Claude 3 Haiku, Bhashini 22 languages). Features: cultural analogies (cricket/cooking/mandi), faded scaffolds, voice viva via S3 audio, DPDP Act 2023 compliant with KMS encryption and CloudWatch audit logs."
   }
 }''::jsonb),
 
